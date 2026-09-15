@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app ./app
+COPY bowlyzerapi ./bowlyzerapi
 COPY scripts ./scripts
 
 ENV PARQUET_DIR=/data/parquet
@@ -15,4 +15,4 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8080
 
-CMD ["python", "-m", "app.server"]
+CMD ["python", "-m", "bowlyzerapi.server"]

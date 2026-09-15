@@ -26,4 +26,4 @@ services:
       PORT: "8080"
     volumes:
       - ./data:/var/lib/bowlyzer
-    command: ["python", "-m", "app.server"]
+    command: ["python", "-m", "bowlyzerapi.server"]

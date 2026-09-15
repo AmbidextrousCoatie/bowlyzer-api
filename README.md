@@ -22,7 +22,7 @@ import data and probe health without locking the stack.
 |------|------|
 | `scripts/import_parquet.sql` | Typed `game_line` + `tournament_line` |
 | `scripts/run_import.py` | Runs SQL + registry dims + `warehouse_meta` |
-| `app/server.py` | Placeholder `GET /api/v1/health` |
+| `bowlyzerapi/server.py` | `GET /api/v1/health`, tournament section, club history |
 | `data/bowlyzer.duckdb` | Local warehouse (gitignored) |
 | `openapi/` | `/api/v1` contract (next) |
 | `docs/` | Flask → v1 map and benches (next) |
@@ -37,11 +37,24 @@ From this directory, with the sibling deploy repo at `../bowlyzer_deploy`:
 ```bash
 uv sync --system-certs
 uv run python scripts/run_import.py
-uv run python -m app.server
+uv run python -m bowlyzerapi.server
 ```
 
 Then `GET http://127.0.0.1:8080/api/v1/health`. Expect `game_line` on the order
 of 700k+ rows and `tournament_line` ~64k.
+
+Query kernels (no KO brackets yet):
+
+```text
+GET /api/v1/tournaments/section?season=25/26&event=Bayerische Meisterschaft - Männer Einzel
+GET /api/v1/clubs/history?club=BC EMAX Unterföhring
+```
+
+Correctness vs Flask (run from `bowlyzer_deploy` so pandas adapters work):
+
+```bash
+uv run --system-certs --with duckdb python ..\bowlyzer-api\scripts\compare_queries.py
+```
 
 Override paths:
 
@@ -64,7 +77,5 @@ at any published Parquet directory. After a weekend league drop, re-run
 
 ## Next
 
-1. Feasibility spike: DuckDB field-progress / tournament section vs Flask cold
-   `GET /tournament/get_section`
-2. OpenAPI for `GET /api/v1/tournaments/{season}/{event}`
-3. Flask RPC → v1 keep/merge/drop map
+1. OpenAPI for `GET /api/v1/tournaments/{season}/{event}` (KO still in-process later)
+2. Flask RPC → v1 keep/merge/drop map
