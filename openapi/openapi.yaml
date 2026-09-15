@@ -1,0 +1,431 @@
+openapi: 3.0.3
+info:
+  title: Bowl-A-Lyzer stats API
+  version: 0.1.0
+  description: |
+    Read-only `/api/v1` over a single DuckDB warehouse. No acquisition, no
+    `?database=` session, no JSON disk cache.
+
+    **Serving language is still TBD.** This spec is the contract. The Python
+    placeholder implements the tournament kernel and club history today.
+
+    Season labels contain a slash (`25/26`). Path parameters MUST be
+    percent-encoded (`25%2F26`). Query-string aliases exist so clients can
+    avoid `%2F` routing issues.
+
+    Successful responses set `X-Data-Revision` (publish run id / import time).
+    The SPA should treat a changed revision as a cache bust for React Query.
+servers:
+  - url: http://127.0.0.1:8080
+    description: Local placeholder
+tags:
+  - name: meta
+  - name: tournaments
+  - name: clubs
+paths:
+  /api/v1/health:
+    get:
+      tags: [meta]
+      operationId: getHealth
+      summary: Warehouse presence and row counts
+      responses:
+        "200":
+          description: Warehouse is readable
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "503":
+          description: Warehouse file missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/tournaments/{season}/{event}:
+    get:
+      tags: [tournaments]
+      operationId: getTournament
+      summary: Tournament document (get_section grain)
+      description: |
+        Target v1 shape of Flask `GET /tournament/get_section`.
+
+        **Implemented now (kernel):** overall leaderboard + field-progress
+        rank series. No KO bracket, no summary cards, no round-results table,
+        no cut-line overlays.
+
+        **Still Flask / later:** `ko_bracket`, `cards`, `round_results`,
+        `best_efforts`, format/cut metadata. Those keys are omitted until
+        ported; the URL does not change.
+      parameters:
+        - $ref: "#/components/parameters/SeasonPath"
+        - $ref: "#/components/parameters/EventPath"
+      responses:
+        "200":
+          description: Tournament kernel (grows into the full document)
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TournamentDocument"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+        "503":
+          $ref: "#/components/responses/WarehouseMissing"
+
+  /api/v1/tournaments/section:
+    get:
+      tags: [tournaments]
+      operationId: getTournamentSectionQuery
+      summary: Tournament kernel (query-string alias)
+      description: Same payload as `GET /api/v1/tournaments/{season}/{event}`.
+      parameters:
+        - $ref: "#/components/parameters/SeasonQuery"
+        - $ref: "#/components/parameters/EventQuery"
+      responses:
+        "200":
+          description: Tournament kernel
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TournamentDocument"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/Internal"
+        "503":
+          $ref: "#/components/responses/WarehouseMissing"
+
+  /api/v1/clubs/{club}/history:
+    get:
+      tags: [clubs]
+      operationId: getClubHistory
+      summary: Club team × season matrix with table position
+      description: |
+        Same grain as Flask `GET /league/get_club_matrix` /
+        `get_club_team_season_matrix`. Fuzzy-resolves the club label.
+        Unknown clubs return 200 with empty `seasons` / `rows`.
+      parameters:
+        - $ref: "#/components/parameters/ClubPath"
+      responses:
+        "200":
+          description: Club history matrix
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClubHistory"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/Internal"
+        "503":
+          $ref: "#/components/responses/WarehouseMissing"
+
+  /api/v1/clubs/history:
+    get:
+      tags: [clubs]
+      operationId: getClubHistoryQuery
+      summary: Club history (query-string alias)
+      parameters:
+        - $ref: "#/components/parameters/ClubQuery"
+      responses:
+        "200":
+          description: Club history matrix
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClubHistory"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/Internal"
+        "503":
+          $ref: "#/components/responses/WarehouseMissing"
+
+components:
+  headers:
+    XDataRevision:
+      description: Warehouse publish / import revision. Changes when Parquet is re-imported.
+      schema:
+        type: string
+      example: "20260915T084441Z"
+
+  parameters:
+    SeasonPath:
+      name: season
+      in: path
+      required: true
+      description: Season label. Encode `/` as `%2F` (example `25%2F26`).
+      schema:
+        type: string
+      example: "25/26"
+    EventPath:
+      name: event
+      in: path
+      required: true
+      description: Tournament title as stored on `tournament_line.event`.
+      schema:
+        type: string
+      example: Bayerische Meisterschaft - Männer Einzel
+    SeasonQuery:
+      name: season
+      in: query
+      required: true
+      schema:
+        type: string
+      example: "25/26"
+    EventQuery:
+      name: event
+      in: query
+      required: true
+      description: Tournament title. `tournament` is accepted as an alias.
+      schema:
+        type: string
+    ClubPath:
+      name: club
+      in: path
+      required: true
+      description: Club display name (percent-encode spaces and umlauts).
+      schema:
+        type: string
+      example: BC EMAX Unterföhring
+    ClubQuery:
+      name: club
+      in: query
+      required: true
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: Missing required identifiers
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: Unknown path
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Internal:
+      description: Query failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    WarehouseMissing:
+      description: DuckDB file not imported
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+
+  schemas:
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - missing_parameters
+                - not_found
+                - warehouse_missing
+                - internal
+            message:
+              type: string
+
+    Health:
+      type: object
+      required: [status, tables]
+      properties:
+        status:
+          type: string
+          enum: [ok, empty]
+        warehouse:
+          type: string
+        revision:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          additionalProperties: true
+        tables:
+          type: object
+          additionalProperties:
+            type: integer
+        error:
+          $ref: "#/components/schemas/ErrorEnvelope/properties/error"
+
+    LeaderboardRow:
+      type: object
+      required: [rank, player_name, total_scratch, total_pins, games]
+      properties:
+        rank:
+          type: integer
+        player_name:
+          type: string
+        player_id:
+          type: string
+          nullable: true
+        club:
+          type: string
+          nullable: true
+        total_scratch:
+          type: number
+        total_pins:
+          type: number
+          description: Scratch total, or score + handicap when `use_net` is true
+        games:
+          type: integer
+        avg_scratch:
+          type: number
+          nullable: true
+        avg_pins:
+          type: number
+          nullable: true
+
+    FieldProgress:
+      type: object
+      required: [labels, player_rank_series, participant_count, slots]
+      properties:
+        labels:
+          type: array
+          items:
+            type: string
+          description: Game slots (`G1` … `Gn`)
+        player_rank_series:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: integer
+          description: Rank after each slot, keyed by player name
+        participant_count:
+          type: integer
+        slots:
+          type: integer
+        use_net:
+          type: boolean
+
+    TournamentDocument:
+      type: object
+      required: [season, event, leaderboard, field_progress]
+      properties:
+        revision:
+          type: string
+          description: Same value as X-Data-Revision
+        season:
+          type: string
+        event:
+          type: string
+        use_net:
+          type: boolean
+          description: True when the event uses handicap / a priori average
+        leaderboard:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaderboardRow"
+          description: |
+            Kernel uses named rows. Full Flask `TableData` (`columns` + `data`)
+            is not the v1 envelope — keep row objects; presentation stays in the SPA.
+        field_progress:
+          $ref: "#/components/schemas/FieldProgress"
+        cards:
+          type: array
+          description: Not implemented (Flask `get_summary_cards`)
+          items:
+            type: object
+        round_results:
+          description: Not implemented (Flask round table)
+          nullable: true
+        rounds:
+          type: array
+          description: Not implemented
+          items:
+            type: object
+        best_efforts:
+          description: Not implemented
+          nullable: true
+        ko_bracket:
+          description: Not implemented — stays in-process / Flask until ported
+          nullable: true
+
+    ClubHistoryItem:
+      type: object
+      required: [league, team]
+      properties:
+        league:
+          type: string
+        team:
+          type: string
+          nullable: true
+        final_position:
+          type: integer
+          nullable: true
+        team_count:
+          type: integer
+          nullable: true
+
+    ClubHistorySeasonCell:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClubHistoryItem"
+
+    ClubHistoryRow:
+      type: object
+      required: [team_number, seasons]
+      properties:
+        team_number:
+          type: string
+          description: `"base"` or the trailing team number (`"1"`, `"2"`, …)
+        seasons:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ClubHistorySeasonCell"
+
+    ClubHistory:
+      type: object
+      required: [club, seasons, rows]
+      properties:
+        revision:
+          type: string
+        club:
+          type: string
+          description: Canonical club label after resolve
+        seasons:
+          type: array
+          items:
+            type: string
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClubHistoryRow"

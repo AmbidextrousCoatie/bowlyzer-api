@@ -10,7 +10,11 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from bowlyzerapi.queries.club import club_history
 from bowlyzerapi.queries.tournament import tournament_section
-from bowlyzerapi.warehouse import connect, warehouse_path
+from bowlyzerapi.warehouse import connect, data_revision, warehouse_path
+
+PREFIX_TOURNAMENT = "/api/v1/tournaments/"
+PREFIX_CLUB_HISTORY = "/api/v1/clubs/"
+SUFFIX_HISTORY = "/history"
 
 
 def _json(value: Any) -> bytes:
@@ -64,53 +68,68 @@ class Handler(BaseHTTPRequestHandler):
         print(f"{self.address_string()} {format % args}", flush=True)
 
     def _send(self, status: int, body: dict[str, Any]) -> None:
+        revision = body.get("revision") or (data_revision() if status < 500 else None)
+        if revision and "revision" not in body and status < 400:
+            body = {**body, "revision": revision}
         payload = _json(body)
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
-        revision = body.get("revision")
         if revision:
             self.send_header("X-Data-Revision", str(revision))
         self.end_headers()
         self.wfile.write(payload)
 
+    def _missing(self, message: str) -> None:
+        self._send(400, {"error": {"code": "missing_parameters", "message": message}})
+
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
-        path = unquote(parsed.path)
+        raw_path = parsed.path
+        path = unquote(raw_path)
         qs = {k: v[-1] for k, v in parse_qs(parsed.query, keep_blank_values=True).items()}
 
         try:
             if path in ("/api/v1/health", "/healthz", "/health"):
                 self._send(*health_payload())
                 return
+
+            season = (qs.get("season") or "").strip()
+            event = (qs.get("event") or qs.get("tournament") or "").strip()
             if path == "/api/v1/tournaments/section":
-                season = (qs.get("season") or "").strip()
-                event = (qs.get("event") or qs.get("tournament") or "").strip()
                 if not season or not event:
-                    self._send(
-                        400,
-                        {
-                            "error": {
-                                "code": "missing_parameters",
-                                "message": "Query params season and event are required.",
-                            }
-                        },
-                    )
+                    self._missing("Query params season and event are required.")
                     return
                 self._send(200, tournament_section(season, event))
                 return
+            if raw_path.startswith(PREFIX_TOURNAMENT):
+                rest = raw_path[len(PREFIX_TOURNAMENT) :]
+                encoded_season, sep, encoded_event = rest.partition("/")
+                if sep and encoded_season and encoded_event:
+                    season = season or unquote(encoded_season).strip()
+                    event = event or unquote(encoded_event).strip()
+                    if not season or not event:
+                        self._missing("season and event are required.")
+                        return
+                    self._send(200, tournament_section(season, event))
+                    return
+
+            club = (qs.get("club") or "").strip()
             if path == "/api/v1/clubs/history":
-                club = (qs.get("club") or "").strip()
                 if not club:
-                    self._send(
-                        400,
-                        {
-                            "error": {
-                                "code": "missing_parameters",
-                                "message": "Query param club is required.",
-                            }
-                        },
-                    )
+                    self._missing("Query param club is required.")
+                    return
+                self._send(200, club_history(club))
+                return
+            if raw_path.startswith(PREFIX_CLUB_HISTORY) and raw_path.rstrip("/").endswith(
+                SUFFIX_HISTORY
+            ):
+                rest = raw_path[len(PREFIX_CLUB_HISTORY) : -len(SUFFIX_HISTORY)]
+                if rest.endswith("/"):
+                    rest = rest[:-1]
+                club = club or unquote(rest).strip()
+                if not club:
+                    self._missing("club is required.")
                     return
                 self._send(200, club_history(club))
                 return
@@ -126,7 +145,11 @@ class Handler(BaseHTTPRequestHandler):
             {
                 "error": {
                     "code": "not_found",
-                    "message": "Try GET /api/v1/health, /api/v1/tournaments/section, /api/v1/clubs/history.",
+                    "message": (
+                        "Try GET /api/v1/health, "
+                        "/api/v1/tournaments/{season}/{event}, "
+                        "/api/v1/clubs/{club}/history."
+                    ),
                 }
             },
         )

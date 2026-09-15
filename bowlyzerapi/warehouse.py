@@ -19,3 +19,23 @@ def connect(*, read_only: bool = True) -> duckdb.DuckDBPyConnection:
     if not path.is_file():
         raise FileNotFoundError(f"No warehouse at {path}. Run: uv run python scripts/run_import.py")
     return duckdb.connect(str(path), read_only=read_only)
+
+
+def data_revision() -> str | None:
+    """Publish run id from warehouse_meta, used as X-Data-Revision."""
+    path = warehouse_path()
+    if not path.is_file():
+        return None
+    con = duckdb.connect(str(path), read_only=True)
+    try:
+        exists = con.execute(
+            "SELECT 1 FROM information_schema.tables WHERE table_name = 'warehouse_meta'"
+        ).fetchone()
+        if not exists:
+            return None
+        rows = dict(con.execute("SELECT key, value FROM warehouse_meta").fetchall())
+        value = rows.get("source_run_id") or rows.get("imported_at")
+        return None if value is None else str(value)
+    finally:
+        con.close()
+
