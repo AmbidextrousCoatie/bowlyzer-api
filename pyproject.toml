@@ -1,0 +1,12 @@
+[project]
+name = "bowlyzer-api"
+version = "0.0.1"
+description = "Read-only stats API for Bowl-A-Lyzer (DuckDB warehouse)."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "duckdb>=1.2.0,<2",
+]
+
+[tool.uv]
+package = false

@@ -1,0 +1,19 @@
+# Warehouse and local Parquet copies (never commit published data)
+data/*.duckdb
+data/*.duckdb.wal
+data/*.tmp
+data/parquet/
+
+.env
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
