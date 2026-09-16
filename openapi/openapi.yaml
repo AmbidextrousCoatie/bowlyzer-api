@@ -333,6 +333,13 @@ paths:
     get:
       tags: [clubs]
       operationId: listClubs
+      parameters:
+        - name: unnumbered
+          in: query
+          description: >
+            When true, only clubs that have both an unnumbered (base) team and a
+            numbered team — same filter as Flask `only_unnumbered`.
+          schema: { type: boolean }
       responses:
         "200":
           description: Club names

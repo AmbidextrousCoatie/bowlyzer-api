@@ -195,8 +195,12 @@ def h_records(p, qs):
     return 200, records(season, league, metric=qs.get("metric") or None)
 
 
-def h_clubs(_p, _q):
-    return 200, club_list()
+def _flag(qs: dict[str, str], key: str) -> bool:
+    return (qs.get(key) or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def h_clubs(_p, qs):
+    return 200, club_list(unnumbered=_flag(qs, "unnumbered"))
 
 
 def h_club_rankings(_p, qs):

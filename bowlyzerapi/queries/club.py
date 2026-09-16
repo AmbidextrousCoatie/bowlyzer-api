@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from bowlyzerapi.engine import (
@@ -171,19 +172,35 @@ def _club_matrix(canonical: str) -> Query:
     )
 
 
-def club_list() -> dict[str, Any]:
+_TEAM_NUMBER = re.compile(r" (\d+)$")
+
+
+def club_list(*, unnumbered: bool = False) -> dict[str, Any]:
     g = game_line
     with session() as con:
         rows = fetch_rows(
             con,
             Query()
             .from_(g)
-            .select(g.club)
-            .where(g.club.is_not_null(), trim(g.club) != "")
-            .distinct()
-            .order_by(g.club),
+            .select(g.club, g.team)
+            .where(g.club.is_not_null(), trim(g.club) != "", g.team.is_not_null())
+            .distinct(),
         )
-    return {"clubs": [str(name) for (name,) in rows]}
+    clubs: set[str] = set()
+    with_unnumbered: set[str] = set()
+    with_numbered: set[str] = set()
+    for club, team in rows:
+        name = str(club).strip()
+        if not name:
+            continue
+        clubs.add(name)
+        if _TEAM_NUMBER.search(str(team).strip()):
+            with_numbered.add(name)
+        else:
+            with_unnumbered.add(name)
+    if unnumbered:
+        return {"clubs": sorted(with_unnumbered & with_numbered)}
+    return {"clubs": sorted(clubs)}
 
 
 def club_document(club: str, *, season: str | None = None) -> dict[str, Any]:
