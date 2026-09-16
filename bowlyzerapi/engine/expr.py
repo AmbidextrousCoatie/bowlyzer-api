@@ -406,8 +406,20 @@ def round_(value: Any, digits: Any = 0) -> Call:
     return Call("round", [to_expr(value), to_expr(digits)])
 
 
+def avg_(value: Any) -> Call:
+    return Call("avg", [to_expr(value)])
+
+
 def sum_(value: Any) -> Call:
     return Call("sum", [to_expr(value)])
+
+
+def stddev_pop(value: Any) -> Call:
+    return Call("stddev_pop", [to_expr(value)])
+
+
+def nullif(left: Any, right: Any) -> Call:
+    return Call("nullif", [to_expr(left), to_expr(right)])
 
 
 def max_(value: Any) -> Call:

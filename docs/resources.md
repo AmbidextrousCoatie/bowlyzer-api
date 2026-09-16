@@ -19,12 +19,40 @@ Contract: [`openapi/openapi.yaml`](../openapi/openapi.yaml). Spike results:
 | v1 resource | Kernel | Notes |
 |-------------|--------|--------|
 | `GET /api/v1/health` | yes | Row counts + revision |
-| `GET /api/v1/tournaments/{season}/{event}` | yes | Leaderboard + field-progress ranks. **No KO.** |
-| `GET /api/v1/clubs/{club}/history` | yes | Club matrix grain; ~60 ms vs Flask ~27 s |
-| Everything else below | not started | Documented so hooks can migrate one resource at a time |
+| `GET /api/v1/meta` | yes | seasons, leagues, weeks, teams, rounds, tournaments |
+| `GET /api/v1/home` | yes | counts + latest_events |
+| `GET /api/v1/seasons/{season}/standings` | yes | All leagues in a season (season dashboard) |
+| `GET /api/v1/leagues` | yes | Catalog; optional `?season=` |
+| `GET /api/v1/leagues/{season}/{league}/standings` | yes | Standings + honor + series + players; `view=history\|averages` |
+| `GET /api/v1/leagues/{season}/{league}/timetable` | yes | Week / date / location |
+| `GET /api/v1/leagues/{season}/{league}/matchdays/{week}` | yes | Table, honor, games; `?team=` details |
+| `GET /api/v1/leagues/{season}/{league}/compare` | yes | Team vs opponent cells; `?team_a=&team_b=` |
+| `GET /api/v1/leagues/{league}/records` | yes | Cross-season; optional `?season=` and `?metric=` |
+| `GET /api/v1/clubs` | yes | Club list |
+| `GET /api/v1/clubs/rankings` | yes | Pinfall, members, averages, wins |
+| `GET /api/v1/clubs/{club}` | yes | Legends + history |
+| `GET /api/v1/clubs/{club}/history` | yes | Club matrix grain |
+| `GET /api/v1/clubs/{club}/players` | yes | Club player results |
+| `GET /api/v1/clubs/{club}/honor/300` | yes | Perfect games |
+| `GET /api/v1/honor/300` | yes | Optional `?club=` |
+| `GET /api/v1/teams` | yes | Team list |
+| `GET /api/v1/teams/{team}` | yes | History, leagues, clutch, consistency, special matches |
+| `GET /api/v1/players` | yes | `?q=&club=` |
+| `GET /api/v1/players/{id}` | yes | Lifetime + competitions + highlights |
+| `GET /api/v1/players/{id}/tournaments` | yes | Positions from kernel leaderboard (no KO) |
+| `GET /api/v1/tournaments` | yes | Catalog |
+| `GET /api/v1/tournaments/podiums` | yes | Top-N from kernel ranks (no KO) |
+| `GET /api/v1/tournaments/{season}/{event}` | yes | Leaderboard, field-progress, rounds, cards, round_results, format. **No KO.** |
+| `GET /api/v1/tournaments/{season}/{event}/players/{player}` | yes | Player section from kernel (no KO) |
 
-Query aliases (`/tournaments/section?season=&event=`, `/clubs/history?club=`)
-are implemented so clients can skip `%2F` in path seasons.
+JSON uses named objects, not Flask `TableData`. KO bracket is `null` until ported.
+
+Query aliases (`/leagues/standings?season=&league=`, `/leagues/timetable`,
+`/leagues/compare`, `/leagues/matchdays/{week}`, `/leagues/records?league=`,
+`/tournaments/section?season=&event=`, `/clubs/history?club=`) skip `%2F` in
+path seasons. Season-first identity is `/leagues/{season}/{league}/…`, parallel
+to `/tournaments/{season}/{event}`. Cross-season records live at
+`/leagues/{league}/records`.
 
 ## Resource map (target)
 
@@ -32,8 +60,8 @@ are implemented so clients can skip `%2F` in path seasons.
 |----|----------|-------------|
 | `GET /api/v1/meta` | seasons, leagues, weeks, teams, rounds, data-sources-info | Filter catalog. No session switcher. **Not specified yet.** |
 | `GET /api/v1/home` | `/home/stats`, `/league/get_latest_events` | Landing aggregate |
-| `GET /api/v1/seasons/{season}/leagues/{league}/standings` | season league standings, honor scores, team points/positions/averages, league history table | Query `week`, `view=` |
-| `GET /api/v1/seasons/{season}/leagues/{league}/matchdays/{week}` | week table, game overview, team details (classic / individual / H2H), honor scores, rounds | One matchday document or tight subresources |
+| `GET /api/v1/leagues/{season}/{league}/standings` | season league standings, honor scores, team points/positions/averages, league history table | Query `week`, `view=` |
+| `GET /api/v1/leagues/{season}/{league}/matchdays/{week}` | week table, game overview, team details (classic / individual / H2H), honor scores, rounds | One matchday document or tight subresources |
 | `GET /api/v1/clubs` / `…/clubs/{club}` | club matrix, legends, rankings, player results | Club is first-class (not `/league/get_club_*`) |
 | `GET /api/v1/clubs/{club}/history` | `/league/get_club_matrix` | **Shipped** (kernel) |
 | `GET /api/v1/teams/{team}` | team history, clutch, consistency, special matches, league comparison | Merge overlapping chart payloads the SPA already combines |
@@ -93,13 +121,13 @@ KO config JSON stays files in the publish dir, not DuckDB.
 | Flask | Caller | Decision | v1 |
 |-------|--------|----------|-----|
 | `GET /league/get_available_seasons` | `useAvailableSeasons` | **keep** | `GET /api/v1/meta` (`seasons`) |
-| `GET /league/get_available_leagues` | `useAvailableLeagues` | **keep** | `GET /api/v1/meta` (`leagues`, optional `?season=`) |
+| `GET /league/get_available_leagues` | `useAvailableLeagues` | **keep** | `GET /api/v1/leagues` or `GET /api/v1/meta` (`leagues`, optional `?season=`) |
 | `GET /league/get_available_weeks` | `useAvailableWeeks` | **merge** | standings / matchday catalog |
 | `GET /league/get_available_teams` | `useAvailableTeams` | **merge** | same |
 | `GET /league/get_available_rounds` | `useAvailableRounds` | **merge** | matchday document |
-| `GET /league/get_season_league_standings` | `useSeasonLeagueStandings` | **keep** | `GET /api/v1/seasons/{season}/standings` (all leagues) or per-league standings |
+| `GET /league/get_season_league_standings` | `useSeasonLeagueStandings` | **keep** | `GET /api/v1/seasons/{season}/standings` (all leagues) or `GET /api/v1/leagues/{season}/{league}/standings` |
 | `GET /league/get_league_history` | `useLeagueHistory` | **keep** | standings resource, `view=history` |
-| `GET /league/get_season_timetable` | `useSeasonTimetable` | **keep** | `…/leagues/{league}/timetable` |
+| `GET /league/get_season_timetable` | `useSeasonTimetable` | **keep** | `GET /api/v1/leagues/{season}/{league}/timetable` |
 
 ### Matchday / team-in-week
 
@@ -124,7 +152,7 @@ KO config JSON stays files in the publish dir, not DuckDB.
 | `GET /league/get_team_performance_table` | `useTeamPerformanceTable` | **merge** | same |
 | `GET /league/get_team_win_percentage_table` | `useTeamWinPercentageTable` | **merge** | same |
 | `GET /league/get_individual_averages` | `useIndividualAverages` | **keep** | league document or player list `view=averages` |
-| `GET /league/get_team_vs_team_comparison` | `useTeamVsTeamComparison` | **keep** | `…/leagues/{league}/compare?team_a=&team_b=` |
+| `GET /league/get_team_vs_team_comparison` | `useTeamVsTeamComparison` | **keep** | `GET /api/v1/leagues/{season}/{league}/compare?team_a=&team_b=` |
 
 Same aggregation, different `order_by` — **merge** into one records resource
 with `metric=`:

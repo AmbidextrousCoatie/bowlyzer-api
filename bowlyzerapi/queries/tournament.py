@@ -28,7 +28,7 @@ from bowlyzerapi.engine import (
     unnest,
 )
 from bowlyzerapi.queries.filters import event_scope, is_bye, pins
-from bowlyzerapi.warehouse import connect
+from bowlyzerapi.warehouse import connect, session
 
 
 def tournament_section(season: str, event: str) -> dict[str, Any]:
@@ -261,3 +261,184 @@ def _field_progress(con, season: str, event: str, use_net: bool) -> dict[str, An
         "slots": total_games,
         "use_net": use_net,
     }
+
+
+def tournament_list(*, season: str | None = None, club: str | None = None) -> dict[str, Any]:
+    t = tournament_line
+    with session() as con:
+        q = Query().from_(t).select(t.season, t.event).where(t.event.is_not_null()).distinct()
+        if season:
+            q = q.where(t.season == season)
+        if club:
+            from bowlyzerapi.engine import lower
+
+            q = q.where(lower(trim(t.club)) == lower(trim(club)))
+        pairs = fetch_rows(con, q.order_by(t.season.desc(), t.event))
+    items = []
+    seen: set[tuple[str, str]] = set()
+    for s, e in pairs:
+        key = (str(s), str(e))
+        if key in seen:
+            continue
+        seen.add(key)
+        items.append({"season": key[0], "event": key[1]})
+    return {"tournaments": items}
+
+
+def tournament_document(season: str, event: str) -> dict[str, Any]:
+    kernel = tournament_section(season, event)
+    t = tournament_line
+    with session() as con:
+        rounds = fetch_dicts(
+            con,
+            Query()
+            .from_(t)
+            .select(t.round_number, any_value(t.round_name).as_("round_name"))
+            .where(event_scope(t, season, event), t.round_number.is_not_null())
+            .group_by(t.round_number)
+            .order_by(t.round_number),
+        )
+        games = fetch_dicts(
+            con,
+            Query()
+            .from_(t)
+            .select(
+                trim(t.player_name).as_("player_name"),
+                t.round_number,
+                t.round_name,
+                t.game_number,
+                t.score,
+                t.handicap,
+                t.club,
+            )
+            .where(event_scope(t, season, event), ~is_bye(t.player_name))
+            .order_by(t.round_number, t.game_number, t.player_name),
+        )
+        hdc = fetch_scalar(
+            con,
+            Query()
+            .from_(t)
+            .select(count_star().filter_where(abs_(coalesce(t.handicap, 0)) > 0))
+            .where(event_scope(t, season, event)),
+        )
+    by_player_round: dict[tuple[str, int], dict[str, Any]] = {}
+    for row in games:
+        name = str(row["player_name"])
+        rn = int(row["round_number"]) if row["round_number"] is not None else 0
+        slot = by_player_round.setdefault(
+            (name, rn),
+            {
+                "player_name": name,
+                "round_number": rn,
+                "round_name": row["round_name"],
+                "club": row["club"],
+                "games": {},
+                "total_scratch": 0,
+            },
+        )
+        gn = int(row["game_number"]) if row["game_number"] is not None else 0
+        score = int(row["score"] or 0)
+        slot["games"][gn] = score
+        slot["total_scratch"] += score
+    round_results = []
+    for slot in sorted(by_player_round.values(), key=lambda r: (r["round_number"], r["player_name"])):
+        played = [v for v in slot["games"].values() if v]
+        round_results.append(
+            {
+                **slot,
+                "games": [slot["games"].get(i) for i in sorted(slot["games"])],
+                "avg_score": round(sum(played) / len(played), 1) if played else None,
+            }
+        )
+    leader = kernel["leaderboard"][0] if kernel["leaderboard"] else None
+    cards = [
+        {"title": "Tournament", "value": event},
+        {"title": "Participants", "value": len(kernel["leaderboard"])},
+    ]
+    if leader:
+        cards.append(
+            {
+                "title": "Leader",
+                "value": leader["player_name"],
+                "subtitle": f"{leader['total_pins']} pins",
+            }
+        )
+    kernel.update(
+        {
+            "rounds": [{"round_number": r["round_number"], "round_name": r["round_name"]} for r in rounds],
+            "cards": cards,
+            "round_results": round_results,
+            "format": {
+                "round_count": len(rounds),
+                "rounds": [{"round_number": r["round_number"], "round_name": r["round_name"]} for r in rounds],
+                "handicap": {"used": bool(hdc)},
+            },
+            "ko_bracket": None,
+        }
+    )
+    return kernel
+
+
+def tournament_player_section(season: str, event: str, player: str) -> dict[str, Any]:
+    doc = tournament_document(season, event)
+    name = player.strip()
+    lb = next(
+        (r for r in doc["leaderboard"] if str(r["player_name"]).lower() == name.lower()),
+        None,
+    )
+    series = doc["field_progress"].get("player_rank_series", {}).get(lb["player_name"] if lb else name, [])
+    games = [r for r in doc["round_results"] if str(r["player_name"]).lower() == name.lower()]
+    scores = [s for r in games for s in r["games"] if s]
+    return {
+        "season": season,
+        "event": event,
+        "player": lb["player_name"] if lb else name,
+        "player_club": lb.get("club") if lb else None,
+        "summary": {
+            "average": lb.get("avg_pins") if lb else None,
+            "final_position": lb.get("rank") if lb else None,
+            "best_position": min(series) if series else None,
+        },
+        "round_table": games,
+        "progress_series": {
+            "labels": doc["field_progress"].get("labels"),
+            "position_series": series,
+        },
+        "field_progress": doc["field_progress"],
+        "ko_bracket": None,
+        "best_efforts": {
+            "highest_game": {"score": max(scores) if scores else None},
+        },
+    }
+
+
+def tournament_podiums(*, season: str | None = None, club: str | None = None, n: int = 3) -> dict[str, Any]:
+    listing = tournament_list(season=season, club=club)
+    n = max(1, min(int(n), 10))
+    podiums = []
+    for item in listing["tournaments"]:
+        if season and item["season"] != season:
+            continue
+        section = tournament_section(item["season"], item["event"])
+        finishers = []
+        for row in section["leaderboard"][:n]:
+            if club and str(row.get("club") or "").lower() != club.lower():
+                continue
+            finishers.append(
+                {
+                    "rank": row["rank"],
+                    "player": row["player_name"],
+                    "club": row.get("club"),
+                    "average": row.get("avg_pins"),
+                }
+            )
+        if club and not finishers:
+            continue
+        podiums.append(
+            {
+                "season": item["season"],
+                "tournament": item["event"],
+                "finishers": finishers[:n],
+            }
+        )
+    return {"top_n": n, "podiums": podiums}

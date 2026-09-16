@@ -3,6 +3,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from contextlib import contextmanager
+from collections.abc import Iterator
+
 import duckdb
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -19,6 +22,15 @@ def connect(*, read_only: bool = True) -> duckdb.DuckDBPyConnection:
     if not path.is_file():
         raise FileNotFoundError(f"No warehouse at {path}. Run: uv run python scripts/run_import.py")
     return duckdb.connect(str(path), read_only=read_only)
+
+
+@contextmanager
+def session(*, read_only: bool = True) -> Iterator[duckdb.DuckDBPyConnection]:
+    con = connect(read_only=read_only)
+    try:
+        yield con
+    finally:
+        con.close()
 
 
 def data_revision() -> str | None:

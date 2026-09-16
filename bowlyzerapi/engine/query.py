@@ -26,6 +26,7 @@ class Query:
         self._select: list[Expr] = []
         self._where: list[Expr] = []
         self._group: list[Expr | Literal] = []
+        self._having: list[Expr] = []
         self._joins: list[tuple[str, FromItem, Expr]] = []
         self._order: list[OrderTerm] = []
         self._distinct = False
@@ -66,6 +67,10 @@ class Query:
                 self._group.append(item)
             else:
                 self._group.append(to_expr(item))
+        return self
+
+    def having(self, *preds: Expr) -> Query:
+        self._having.extend(preds)
         return self
 
     def left_join(self, item: FromItem, on: Expr) -> Query:
@@ -143,6 +148,11 @@ class Query:
             parts.append(
                 "GROUP BY " + ", ".join(g.compile(params) for g in self._group)
             )
+        if self._having:
+            pred = self._having[0]
+            for extra in self._having[1:]:
+                pred = pred & extra
+            parts.append(f"HAVING {pred.compile(params)}")
         if self._order:
             parts.append("ORDER BY " + ", ".join(o.compile(params) for o in self._order))
         if self._limit is not None:

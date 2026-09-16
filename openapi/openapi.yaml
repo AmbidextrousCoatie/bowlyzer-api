@@ -7,7 +7,7 @@ info:
     `?database=` session, no JSON disk cache.
 
     **Serving language is still TBD.** This spec is the contract. The Python
-    placeholder implements the tournament kernel and club history today.
+    placeholder implements the resources in `docs/resources.md`.
 
     Season labels contain a slash (`25/26`). Path parameters MUST be
     percent-encoded (`25%2F26`). Query-string aliases exist so clients can
@@ -15,13 +15,17 @@ info:
 
     Successful responses set `X-Data-Revision` (publish run id / import time).
     The SPA should treat a changed revision as a cache bust for React Query.
+    KO brackets are omitted (`ko_bracket: null`) until ported.
 servers:
   - url: http://127.0.0.1:8080
     description: Local placeholder
 tags:
   - name: meta
+  - name: leagues
   - name: tournaments
   - name: clubs
+  - name: teams
+  - name: players
 paths:
   /api/v1/health:
     get:
@@ -45,7 +49,550 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
 
+  /api/v1/meta:
+    get:
+      tags: [meta]
+      operationId: getMeta
+      summary: Filter catalog (seasons, leagues, weeks, teams, rounds, tournaments)
+      parameters:
+        - { name: season, in: query, schema: { type: string } }
+        - { name: league, in: query, schema: { type: string } }
+        - { name: week, in: query, schema: { type: integer } }
+        - { name: club, in: query, schema: { type: string } }
+        - { name: team, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Catalog object
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/home:
+    get:
+      tags: [meta]
+      operationId: getHome
+      summary: Landing counts + latest events
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, default: 8 } }
+      responses:
+        "200":
+          description: Home document
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/seasons/{season}/standings:
+    get:
+      tags: [leagues]
+      operationId: getSeasonStandings
+      summary: All league standings in a season
+      parameters:
+        - $ref: "#/components/parameters/SeasonPath"
+      responses:
+        "200":
+          description: Season standings document
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/leagues:
+    get:
+      tags: [leagues]
+      operationId: listLeagues
+      summary: League catalog
+      parameters:
+        - { name: season, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: League names, optionally filtered by season
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/leagues/standings:
+    get:
+      tags: [leagues]
+      operationId: getLeagueStandingsQuery
+      summary: League standings (query alias; avoids %2F in the path)
+      parameters:
+        - { name: season, in: query, required: true, schema: { type: string } }
+        - { name: league, in: query, required: true, schema: { type: string } }
+        - { name: week, in: query, schema: { type: integer } }
+        - { name: view, in: query, schema: { type: string, enum: [history, averages] } }
+      responses:
+        "200":
+          description: League standings document
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/leagues/timetable:
+    get:
+      tags: [leagues]
+      operationId: getLeagueTimetableQuery
+      parameters:
+        - { name: season, in: query, required: true, schema: { type: string } }
+        - { name: league, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Week calendar
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/leagues/compare:
+    get:
+      tags: [leagues]
+      operationId: getLeagueCompareQuery
+      parameters:
+        - { name: season, in: query, required: true, schema: { type: string } }
+        - { name: league, in: query, required: true, schema: { type: string } }
+        - { name: team_a, in: query, schema: { type: string } }
+        - { name: team_b, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Head-to-head cell matrix
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/leagues/matchdays/{week}:
+    get:
+      tags: [leagues]
+      operationId: getMatchdayQuery
+      parameters:
+        - { name: week, in: path, required: true, schema: { type: integer } }
+        - { name: season, in: query, required: true, schema: { type: string } }
+        - { name: league, in: query, required: true, schema: { type: string } }
+        - { name: team, in: query, schema: { type: string } }
+        - { name: round, in: query, schema: { type: integer } }
+      responses:
+        "200":
+          description: Matchday document
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/leagues/records:
+    get:
+      tags: [leagues]
+      operationId: getLeagueRecordsQuery
+      parameters:
+        - { name: league, in: query, required: true, schema: { type: string } }
+        - { name: season, in: query, schema: { type: string } }
+        - { name: metric, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Record lists
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/leagues/{season}/{league}/standings:
+    get:
+      tags: [leagues]
+      operationId: getLeagueStandings
+      summary: League table, honor scores, week series, player averages
+      parameters:
+        - $ref: "#/components/parameters/SeasonPath"
+        - $ref: "#/components/parameters/LeaguePath"
+        - { name: week, in: query, schema: { type: integer } }
+        - { name: view, in: query, schema: { type: string, enum: [history, averages] } }
+      responses:
+        "200":
+          description: League standings document
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/leagues/{season}/{league}/timetable:
+    get:
+      tags: [leagues]
+      operationId: getLeagueTimetable
+      parameters:
+        - $ref: "#/components/parameters/SeasonPath"
+        - $ref: "#/components/parameters/LeaguePath"
+      responses:
+        "200":
+          description: Week calendar
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/leagues/{season}/{league}/matchdays/{week}:
+    get:
+      tags: [leagues]
+      operationId: getMatchday
+      summary: Week table, honor, games; optional team details
+      parameters:
+        - $ref: "#/components/parameters/SeasonPath"
+        - $ref: "#/components/parameters/LeaguePath"
+        - { name: week, in: path, required: true, schema: { type: integer } }
+        - { name: team, in: query, schema: { type: string } }
+        - { name: round, in: query, schema: { type: integer } }
+      responses:
+        "200":
+          description: Matchday document
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/leagues/{season}/{league}/compare:
+    get:
+      tags: [leagues]
+      operationId: getLeagueCompare
+      parameters:
+        - $ref: "#/components/parameters/SeasonPath"
+        - $ref: "#/components/parameters/LeaguePath"
+        - { name: team_a, in: query, schema: { type: string } }
+        - { name: team_b, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Head-to-head cell matrix
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/leagues/{league}/records:
+    get:
+      tags: [leagues]
+      operationId: getLeagueRecords
+      summary: Record lists for a league (optional season filter)
+      parameters:
+        - $ref: "#/components/parameters/LeaguePath"
+        - { name: season, in: query, schema: { type: string } }
+        - { name: metric, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Record lists
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/leagues/{season}/{league}/records:
+    get:
+      tags: [leagues]
+      operationId: getLeagueSeasonRecords
+      parameters:
+        - $ref: "#/components/parameters/SeasonPath"
+        - $ref: "#/components/parameters/LeaguePath"
+        - { name: metric, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Record lists for one season
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/clubs:
+    get:
+      tags: [clubs]
+      operationId: listClubs
+      responses:
+        "200":
+          description: Club names
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/clubs/rankings:
+    get:
+      tags: [clubs]
+      operationId: getClubRankings
+      parameters:
+        - { name: top_n, in: query, schema: { type: integer, default: 5 } }
+      responses:
+        "200":
+          description: Club ranking boards
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/clubs/{club}:
+    get:
+      tags: [clubs]
+      operationId: getClub
+      summary: Club legends + history
+      parameters:
+        - $ref: "#/components/parameters/ClubPath"
+        - { name: season, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Club document
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/clubs/{club}/players:
+    get:
+      tags: [clubs]
+      operationId: getClubPlayers
+      parameters:
+        - $ref: "#/components/parameters/ClubPath"
+        - { name: season, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Club player results
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/clubs/{club}/honor/300:
+    get:
+      tags: [clubs]
+      operationId: getClubHonor300
+      parameters:
+        - $ref: "#/components/parameters/ClubPath"
+      responses:
+        "200":
+          description: Perfect games for a club
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/honor/300:
+    get:
+      tags: [clubs]
+      operationId: getHonor300
+      parameters:
+        - { name: club, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Perfect games
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/teams:
+    get:
+      tags: [teams]
+      operationId: listTeams
+      responses:
+        "200":
+          description: Team names
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/teams/{team}:
+    get:
+      tags: [teams]
+      operationId: getTeam
+      summary: History, league comparison, clutch, consistency, special matches
+      parameters:
+        - { name: team, in: path, required: true, schema: { type: string } }
+        - { name: season, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Team document
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/players:
+    get:
+      tags: [players]
+      operationId: searchPlayers
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: club, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 50 } }
+      responses:
+        "200":
+          description: Player search hits
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/players/{id}:
+    get:
+      tags: [players]
+      operationId: getPlayer
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: club, in: query, schema: { type: string } }
+        - { name: season, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Player lifetime document
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/players/{id}/tournaments:
+    get:
+      tags: [players]
+      operationId: getPlayerTournaments
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Player tournament results (kernel ranks, no KO)
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/tournaments:
+    get:
+      tags: [tournaments]
+      operationId: listTournaments
+      parameters:
+        - { name: season, in: query, schema: { type: string } }
+        - { name: club, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Tournament catalog
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/tournaments/podiums:
+    get:
+      tags: [tournaments]
+      operationId: getTournamentPodiums
+      parameters:
+        - { name: season, in: query, schema: { type: string } }
+        - { name: club, in: query, schema: { type: string } }
+        - { name: n, in: query, schema: { type: integer, default: 3 } }
+      responses:
+        "200":
+          description: Podiums from kernel ranks (no KO)
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
   /api/v1/tournaments/{season}/{event}:
+    get:
+      tags: [tournaments]
+      operationId: getTournament
+      summary: Tournament document (get_section grain)
+      description: |
+        Leaderboard, field-progress ranks, rounds, cards, round_results, format.
+        `ko_bracket` is null until ported.
+      parameters:
+        - $ref: "#/components/parameters/SeasonPath"
+        - $ref: "#/components/parameters/EventPath"
+      responses:
+        "200":
+          description: Tournament document
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TournamentDocument"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/Internal"
+        "503":
+          $ref: "#/components/responses/WarehouseMissing"
+
+  /api/v1/tournaments/{season}/{event}/players/{player}:
+    get:
+      tags: [tournaments]
+      operationId: getTournamentPlayer
+      parameters:
+        - $ref: "#/components/parameters/SeasonPath"
+        - $ref: "#/components/parameters/EventPath"
+        - { name: player, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Player tournament section (no KO)
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
     get:
       tags: [tournaments]
       operationId: getTournament
@@ -177,6 +724,13 @@ components:
       schema:
         type: string
       example: "25/26"
+    LeaguePath:
+      name: league
+      in: path
+      required: true
+      description: League code as stored on `game_line.event` (e.g. `BZL N1`).
+      schema:
+        type: string
     EventPath:
       name: event
       in: path
@@ -406,7 +960,7 @@ components:
       properties:
         team_number:
           type: string
-          description: `"base"` or the trailing team number (`"1"`, `"2"`, …)
+          description: '"base" or the trailing team number ("1", "2", …)'
         seasons:
           type: object
           additionalProperties:

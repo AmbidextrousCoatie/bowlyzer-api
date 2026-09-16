@@ -22,8 +22,9 @@ import data and probe health without locking the stack.
 |------|------|
 | `scripts/import_parquet.sql` | Typed `game_line` + `tournament_line` |
 | `scripts/run_import.py` | Runs SQL + registry dims + `warehouse_meta` |
+| `bowlyzerapi/http.py` | `/api/v1` router for resources in `docs/resources.md` |
+| `bowlyzerapi/server.py` | Placeholder HTTP server |
 | `bowlyzerapi/engine/` | Typed SQL catalog + parameterized query compiler |
-| `bowlyzerapi/server.py` | Placeholder HTTP: health, tournament, club history |
 | `openapi/openapi.yaml` | `/api/v1` contract (source of truth) |
 | `docs/resources.md` | Flask RPC → v1 keep / merge / drop |
 | `docs/bench-get-section.md` | DuckDB vs Flask kernel timings |
@@ -48,6 +49,7 @@ of 700k+ rows and `tournament_line` ~64k.
 Query kernels (no KO brackets yet):
 
 ```text
+GET /api/v1/leagues/25%2F26/{league}/standings
 GET /api/v1/tournaments/25%2F26/Bayerische%20Meisterschaft%20-%20M%C3%A4nner%20Einzel
 GET /api/v1/clubs/BC%20EMAX%20Unterf%C3%B6hring/history
 ```
@@ -55,6 +57,7 @@ GET /api/v1/clubs/BC%20EMAX%20Unterf%C3%B6hring/history
 Query-string aliases (same payloads; easier when `season` contains `/`):
 
 ```text
+GET /api/v1/leagues/standings?season=25/26&league=…
 GET /api/v1/tournaments/section?season=25/26&event=Bayerische Meisterschaft - Männer Einzel
 GET /api/v1/clubs/history?club=BC EMAX Unterföhring
 ```
