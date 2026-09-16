@@ -9,6 +9,7 @@ from bowlyzerapi.queries.club import (
     club_document,
     club_history,
     club_honor_300,
+    club_legends,
     club_list,
     club_players,
     club_rankings,
@@ -214,12 +215,23 @@ def h_club_history_query(_p, qs):
     return 200, club_history(club)
 
 
+def h_club_legends_query(_p, qs):
+    club = (qs.get("club") or "").strip()
+    if not club:
+        return _missing("Query param club is required.")
+    return 200, club_legends(club, season=qs.get("season") or None)
+
+
 def h_club(p, qs):
     return 200, club_document(p["club"], season=qs.get("season") or None)
 
 
 def h_club_history(p, _q):
     return 200, club_history(p["club"])
+
+
+def h_club_legends(p, qs):
+    return 200, club_legends(p["club"], season=qs.get("season") or None)
 
 
 def h_club_players(p, qs):
@@ -303,7 +315,9 @@ ROUTES: list[tuple[list[str], Handler]] = [
     (["api", "v1", "leagues"], h_leagues),
     (["api", "v1", "clubs", "rankings"], h_club_rankings),
     (["api", "v1", "clubs", "history"], h_club_history_query),
+    (["api", "v1", "clubs", "legends"], h_club_legends_query),
     (["api", "v1", "clubs", "{club}", "history"], h_club_history),
+    (["api", "v1", "clubs", "{club}", "legends"], h_club_legends),
     (["api", "v1", "clubs", "{club}", "players"], h_club_players),
     (["api", "v1", "clubs", "{club}", "honor", "300"], h_club_honor),
     (["api", "v1", "clubs", "{club}"], h_club),

@@ -454,6 +454,14 @@ def count_distinct(value: Any) -> _CountDistinct:
     return _CountDistinct(to_expr(value))
 
 
+def list_(value: Any) -> Call:
+    return Call("list", [to_expr(value)])
+
+
+def list_distinct(value: Any) -> Call:
+    return Call("list_distinct", [list_(value)])
+
+
 def concat(*values: Any) -> Expr:
     if len(values) < 2:
         raise ValueError("concat() requires at least two arguments")

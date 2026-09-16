@@ -8,19 +8,24 @@ from typing import Any
 from bowlyzerapi.engine import (
     Query,
     abs_,
+    any_value,
     avg_,
     case,
+    coalesce,
     count_distinct,
     count_star,
     fetch_dicts,
     fetch_rows,
     game_line,
+    list_distinct,
     lower,
     max_,
+    nullif,
     rank,
     regexp_extract,
     relation,
     round_,
+    row_number,
     sum_,
     tournament_line,
     trim,
@@ -30,6 +35,7 @@ from bowlyzerapi.queries.filters import (
     is_bye,
     is_league_fact,
     is_player_game,
+    pins,
     resolve_club,
 )
 from bowlyzerapi.queries.util import as_float, as_int, as_str
@@ -203,6 +209,18 @@ def club_list(*, unnumbered: bool = False) -> dict[str, Any]:
     return {"clubs": sorted(clubs)}
 
 
+def club_legends(club: str, *, season: str | None = None) -> dict[str, Any]:
+    club = (club or "").strip()
+    if not club:
+        return {"club": "", **_empty_legends()}
+    with session() as con:
+        canonical = resolve_club(con, club)
+        if canonical is None:
+            return {"club": club, **_empty_legends()}
+        legends = _legends(con, canonical, season)
+    return {"club": canonical, **legends}
+
+
 def club_document(club: str, *, season: str | None = None) -> dict[str, Any]:
     with session() as con:
         canonical = resolve_club(con, club)
@@ -323,126 +341,333 @@ def club_honor_300(club: str | None = None) -> dict[str, Any]:
     }
 
 
+def _count_entries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        club = as_str(row.get("club"))
+        if not club:
+            continue
+        out.append({"club": club, "value": as_int(row.get("value")) or 0})
+    return out
+
+
+def _detail_entries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        club = as_str(row.get("club"))
+        value = as_float(row.get("value"))
+        if not club or value is None:
+            continue
+        entry: dict[str, Any] = {
+            "club": club,
+            "value": value,
+            "team": as_str(row.get("team")) or "",
+            "season": as_str(row.get("season")) or "",
+            "league": as_str(row.get("league") or row.get("event")) or "",
+            "week": as_str(row.get("week")) or "",
+        }
+        round_no = as_int(row.get("round") if row.get("round") is not None else row.get("round_number"))
+        if round_no is not None:
+            entry["round"] = str(round_no)
+        match_total = as_int(row.get("match_total"))
+        if match_total is not None:
+            entry["match_total"] = match_total
+        out.append(entry)
+    return out
+
+
+def _player_league_where(g=game_line):
+    player_key = coalesce(nullif(trim(g.player_id), ""), g.player_name)
+    return (
+        is_league_fact(g),
+        is_player_game(g),
+        ~is_bye(g.player_name),
+        g.club.is_not_null(),
+        trim(g.club) != "",
+        player_key.is_not_null(),
+        trim(player_key) != "",
+        g.score.is_not_null(),
+    )
+
+
 def club_rankings(*, top_n: int = 5) -> dict[str, Any]:
+    """Warehouse-wide club leaderboards for the empty `/club` page."""
     top_n = max(1, min(int(top_n), 20))
     g = game_line
-    t = tournament_line
+    player_key = coalesce(nullif(trim(g.player_id), ""), g.player_name)
+    league_where = _player_league_where(g)
     with session() as con:
         pinfall = fetch_dicts(
             con,
             Query()
             .from_(g)
-            .select(g.club, sum_(abs_(g.score)).as_("value"))
-            .where(is_league_fact(g), is_player_game(g), ~is_bye(g.player_name), g.club.is_not_null())
+            .select(g.club, sum_(g.score).as_("value"))
+            .where(*league_where)
             .group_by(g.club)
-            .order_by(sum_(abs_(g.score)).desc())
+            .order_by(sum_(g.score).desc())
             .limit(top_n),
         )
         members = fetch_dicts(
             con,
             Query()
             .from_(g)
-            .select(g.club, count_distinct(g.player_id).as_("value"))
-            .where(is_league_fact(g), is_player_game(g), ~is_bye(g.player_name), g.club.is_not_null())
+            .select(g.club, count_distinct(player_key).as_("value"))
+            .where(*league_where)
             .group_by(g.club)
-            .order_by(count_distinct(g.player_id).desc())
+            .order_by(count_distinct(player_key).desc())
             .limit(top_n),
         )
-        weekly_avg = fetch_dicts(
-            con,
-            Query()
-            .from_(g)
-            .select(g.club, g.season, g.event, g.week, g.team, avg_(abs_(g.score)).as_("avg"))
-            .where(is_league_fact(g), is_player_game(g), ~is_bye(g.player_name), g.club.is_not_null())
-            .group_by(g.club, g.season, g.event, g.week, g.team)
-            .order_by(avg_(abs_(g.score)).desc())
-            .limit(top_n),
-        )
-        team_game = fetch_dicts(
-            con,
-            Query()
-            .from_(g)
-            .select(g.club, g.team, g.season, g.event, g.week, max_(g.score).as_("value"))
-            .where(g.computed_data.is_true(), g.club.is_not_null(), g.score.is_not_null())
-            .group_by(g.club, g.team, g.season, g.event, g.week)
-            .order_by(max_(g.score).desc())
-            .limit(top_n),
-        )
-    with session() as con:
-        totals = fetch_dicts(
-            con,
-            Query()
-            .from_(t)
-            .select(t.season, t.event, t.club, t.player_name, sum_(t.score).as_("pins"))
-            .where(~is_bye(t.player_name), t.club.is_not_null())
-            .group_by(t.season, t.event, t.club, t.player_name),
-        )
-    winners: dict[tuple[str, str], str] = {}
-    best: dict[tuple[str, str], float] = {}
-    for row in totals:
-        key = (str(row["season"]), str(row["event"]))
-        pins = float(row["pins"] or 0)
-        if key not in best or pins > best[key]:
-            best[key] = pins
-            winners[key] = str(row["club"])
-    from collections import Counter
-
-    win_counts = Counter(winners.values())
-    tournament_win_rows = [{"club": club, "value": n} for club, n in win_counts.most_common(top_n)]
-
+        weekly = _best_weekly_averages(con, top_n)
+        team_games = _best_team_games(con, top_n)
+        tournament_wins = _tournament_wins(con, top_n)
+        league_wins = _league_wins(con, top_n)
     return {
         "top_n": top_n,
-        "highest_total_pinfall": [{"club": as_str(r["club"]), "value": as_float(r["value"])} for r in pinfall],
-        "most_members": [{"club": as_str(r["club"]), "value": as_int(r["value"])} for r in members],
-        "highest_weekly_team_average": [
-            {
-                "club": as_str(r["club"]),
-                "team": as_str(r["team"]),
-                "season": as_str(r["season"]),
-                "league": as_str(r["event"]),
-                "week": as_int(r["week"]),
-                "value": as_float(r["avg"]),
-            }
-            for r in weekly_avg
-        ],
-        "highest_team_game_average": [
-            {
-                "club": as_str(r["club"]),
-                "team": as_str(r["team"]),
-                "season": as_str(r["season"]),
-                "league": as_str(r["event"]),
-                "week": as_int(r["week"]),
-                "value": as_float(r["value"]),
-            }
-            for r in team_game
-        ],
-        "most_tournament_wins": tournament_win_rows,
-        "most_league_wins": _league_wins(top_n),
+        "highest_total_pinfall": _count_entries(pinfall),
+        "most_members": _count_entries(members),
+        "highest_weekly_team_average": weekly,
+        "highest_team_game_average": team_games,
+        "most_tournament_wins": tournament_wins,
+        "most_league_wins": league_wins,
     }
 
 
-def _league_wins(top_n: int) -> list[dict[str, Any]]:
+def _match_averages() -> Query:
     g = game_line
-    with session() as con:
-        rows = fetch_dicts(
-            con,
-            Query()
-            .from_(g)
-            .select(g.season, g.event, g.club, g.team, sum_(g.points).as_("pts"))
-            .where(is_league_fact(g), g.club.is_not_null(), g.team.is_not_null())
-            .group_by(g.season, g.event, g.club, g.team),
+    round_no = try_cast(g.round_number, "INTEGER")
+    return (
+        Query()
+        .from_(g)
+        .select(
+            g.club,
+            g.team,
+            g.season,
+            g.event,
+            g.week,
+            round_no.as_("round_number"),
+            avg_(g.score).as_("match_average"),
+            sum_(g.score).as_("match_total"),
         )
-    best: dict[tuple[str, str], tuple[float, str]] = {}
-    for row in rows:
-        key = (str(row["season"]), str(row["event"]))
-        pts = float(row["pts"] or 0)
-        club = str(row["club"])
-        if key not in best or pts > best[key][0]:
-            best[key] = (pts, club)
-    from collections import Counter
+        .where(
+            *_player_league_where(g),
+            g.team.is_not_null(),
+            round_no.is_not_null(),
+            round_no > 0,
+        )
+        .group_by(g.club, g.team, g.season, g.event, g.week, round_no)
+    )
 
-    counts = Counter(club for _pts, club in best.values())
-    return [{"club": club, "value": n} for club, n in counts.most_common(top_n)]
+
+def _best_weekly_averages(con, top_n: int) -> list[dict[str, Any]]:
+    matches = _match_averages()
+    m = relation(
+        "matches",
+        "club",
+        "team",
+        "season",
+        "event",
+        "week",
+        "round_number",
+        "match_average",
+        "match_total",
+    )
+    weekly = (
+        Query()
+        .from_(m)
+        .select(
+            m.club,
+            m.team,
+            m.season,
+            m.event,
+            m.week,
+            avg_(m.match_average).as_("week_average"),
+        )
+        .group_by(m.club, m.team, m.season, m.event, m.week)
+    )
+    w = relation("weekly", "club", "team", "season", "event", "week", "week_average")
+    ranked = (
+        Query()
+        .from_(w)
+        .select(
+            w.club,
+            w.team,
+            w.season,
+            w.event,
+            w.week,
+            w.week_average,
+            row_number()
+            .over(partition_by=[w.club], order_by=[w.week_average.desc()])
+            .as_("rn"),
+        )
+    )
+    r = relation("ranked", "club", "team", "season", "event", "week", "week_average", "rn")
+    rows = fetch_dicts(
+        con,
+        Query.with_ctes(matches=matches, weekly=weekly, ranked=ranked)
+        .from_(r)
+        .select(
+            r.club,
+            r.team,
+            r.season,
+            r.event.as_("league"),
+            r.week,
+            r.week_average.as_("value"),
+        )
+        .where(r.rn == 1)
+        .order_by(r.week_average.desc())
+        .limit(top_n),
+    )
+    return _detail_entries(rows)
+
+
+def _best_team_games(con, top_n: int) -> list[dict[str, Any]]:
+    matches = _match_averages()
+    m = relation(
+        "matches",
+        "club",
+        "team",
+        "season",
+        "event",
+        "week",
+        "round_number",
+        "match_average",
+        "match_total",
+    )
+    ranked = (
+        Query()
+        .from_(m)
+        .select(
+            m.club,
+            m.team,
+            m.season,
+            m.event,
+            m.week,
+            m.round_number,
+            m.match_average,
+            m.match_total,
+            row_number()
+            .over(partition_by=[m.club], order_by=[m.match_average.desc()])
+            .as_("rn"),
+        )
+    )
+    r = relation(
+        "ranked",
+        "club",
+        "team",
+        "season",
+        "event",
+        "week",
+        "round_number",
+        "match_average",
+        "match_total",
+        "rn",
+    )
+    rows = fetch_dicts(
+        con,
+        Query.with_ctes(matches=matches, ranked=ranked)
+        .from_(r)
+        .select(
+            r.club,
+            r.team,
+            r.season,
+            r.event.as_("league"),
+            r.week,
+            r.round_number.as_("round"),
+            r.match_average.as_("value"),
+            r.match_total,
+        )
+        .where(r.rn == 1)
+        .order_by(r.match_average.desc())
+        .limit(top_n),
+    )
+    return _detail_entries(rows)
+
+
+def _league_wins(con, top_n: int) -> list[dict[str, Any]]:
+    g = game_line
+    totals = (
+        Query()
+        .from_(g)
+        .select(
+            g.season,
+            g.event,
+            g.team,
+            any_value(g.club).as_("club"),
+            sum_(g.points).as_("pts"),
+        )
+        .where(is_league_fact(g), g.team.is_not_null(), g.club.is_not_null(), trim(g.club) != "")
+        .group_by(g.season, g.event, g.team)
+    )
+    tot = relation("totals", "season", "event", "team", "club", "pts")
+    ranked = (
+        Query()
+        .from_(tot)
+        .select(
+            tot.club,
+            rank()
+            .over(partition_by=[tot.season, tot.event], order_by=[tot.pts.desc()])
+            .as_("rk"),
+        )
+    )
+    rk = relation("ranked", "club", "rk")
+    rows = fetch_dicts(
+        con,
+        Query.with_ctes(totals=totals, ranked=ranked)
+        .from_(rk)
+        .select(rk.club, count_star().as_("value"))
+        .where(rk.rk == 1, rk.club.is_not_null(), trim(rk.club) != "")
+        .group_by(rk.club)
+        .order_by(count_star().desc())
+        .limit(top_n),
+    )
+    return _count_entries(rows)
+
+
+def _tournament_wins(con, top_n: int) -> list[dict[str, Any]]:
+    t = tournament_line
+    played = (
+        Query()
+        .from_(t)
+        .select(
+            t.season,
+            t.event,
+            t.player_name,
+            any_value(t.club).as_("club"),
+            sum_(pins(t, True)).as_("total_pins"),
+        )
+        .where(~is_bye(t.player_name), t.club.is_not_null(), trim(t.club) != "")
+        .group_by(t.season, t.event, t.player_name)
+    )
+    p = relation("played", "season", "event", "player_name", "club", "total_pins")
+    ranked = (
+        Query()
+        .from_(p)
+        .select(
+            p.club,
+            row_number()
+            .over(partition_by=[p.season, p.event], order_by=[p.total_pins.desc()])
+            .as_("rn"),
+        )
+    )
+    r = relation("ranked", "club", "rn")
+    rows = fetch_dicts(
+        con,
+        Query.with_ctes(played=played, ranked=ranked)
+        .from_(r)
+        .select(r.club, count_star().as_("value"))
+        .where(r.rn == 1, r.club.is_not_null(), trim(r.club) != "")
+        .group_by(r.club)
+        .order_by(count_star().desc())
+        .limit(top_n),
+    )
+    return _count_entries(rows)
+
+
+_LEGEND_TOP_N = 5
+_MIN_GAMES_ALLTIME_AVG = 12
+_MIN_GAMES_SEASON = 6
+_MIN_TEAMS_REPRESENTED = 2
+_MIN_LEAGUES_SEEN = 2
 
 
 def _empty_legends() -> dict[str, list]:
@@ -456,99 +681,165 @@ def _empty_legends() -> dict[str, list]:
     }
 
 
+def _str_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else []
+    out: list[str] = []
+    for item in value:
+        text = str(item).strip()
+        if text:
+            out.append(text)
+    return out
+
+
+def _legend_entry(row: dict[str, Any], *, extras: tuple[str, ...] = ()) -> dict[str, Any]:
+    entry: dict[str, Any] = {
+        "player_id": as_str(row.get("player_id")) or "",
+        "player_name": as_str(row.get("player_name")) or as_str(row.get("player")) or "",
+        "value": row.get("value"),
+    }
+    if "games" in extras:
+        games = as_int(row.get("games"))
+        if games is not None:
+            entry["games"] = games
+    if "average" in extras:
+        avg = as_float(row.get("average"))
+        if avg is not None:
+            entry["average"] = avg
+            entry["value"] = avg
+    if "season" in extras:
+        season = as_str(row.get("season"))
+        if season:
+            entry["season"] = season
+    if "teams" in extras:
+        teams = _str_list(row.get("teams"))
+        if teams:
+            entry["teams"] = teams
+    if "leagues" in extras:
+        leagues = _str_list(row.get("leagues"))
+        if leagues:
+            entry["leagues"] = leagues
+    return entry
+
+
 def _legends(con, club: str, season: str | None) -> dict[str, Any]:
     g = game_line
+    player_key = coalesce(nullif(trim(g.player_id), ""), g.player_name)
+    team_number = regexp_extract(g.team, " ([0-9]+)$", 1)
+    team_slot = case((team_number == "", "Basis"), else_=team_number)
     scope = (
         is_league_fact(g)
         & is_player_game(g)
         & (~is_bye(g.player_name))
         & (lower(trim(g.club)) == lower(trim(club)))
+        & g.player_name.is_not_null()
+        & (trim(g.player_name) != "")
     )
     if season:
         scope = scope & (g.season == season)
-    most_games = fetch_dicts(
-        con,
-        Query()
-        .from_(g)
-        .select(g.player_name.as_("player"), count_star().as_("value"))
-        .where(scope)
-        .group_by(g.player_name)
-        .order_by(count_star().desc())
-        .limit(5),
-    )
-    most_seasons = fetch_dicts(
-        con,
-        Query()
-        .from_(g)
-        .select(g.player_name.as_("player"), count_distinct(g.season).as_("value"))
-        .where(scope)
-        .group_by(g.player_name)
-        .order_by(count_distinct(g.season).desc())
-        .limit(5),
-    )
-    highest_average = fetch_dicts(
-        con,
-        Query()
-        .from_(g)
-        .select(g.player_name.as_("player"), round_(avg_(abs_(g.score)), 2).as_("value"), count_star().as_("games"))
-        .where(scope)
-        .group_by(g.player_name)
-        .having(count_star() >= (6 if season else 12))
-        .order_by(avg_(abs_(g.score)).desc())
-        .limit(5),
-    )
-    best_seasons = fetch_dicts(
-        con,
+    min_avg_games = _MIN_GAMES_SEASON if season else _MIN_GAMES_ALLTIME_AVG
+
+    def top(query: Query) -> list[dict[str, Any]]:
+        return fetch_dicts(con, query.limit(_LEGEND_TOP_N))
+
+    most_games = top(
         Query()
         .from_(g)
         .select(
-            g.player_name.as_("player"),
-            g.season,
+            any_value(g.player_id).as_("player_id"),
+            any_value(g.player_name).as_("player_name"),
+            count_star().as_("value"),
+            count_star().as_("games"),
+            round_(avg_(abs_(g.score)), 2).as_("average"),
+        )
+        .where(scope)
+        .group_by(player_key)
+        .order_by(count_star().desc(), any_value(g.player_name).asc())
+    )
+    highest_average = top(
+        Query()
+        .from_(g)
+        .select(
+            any_value(g.player_id).as_("player_id"),
+            any_value(g.player_name).as_("player_name"),
             round_(avg_(abs_(g.score)), 2).as_("value"),
+            round_(avg_(abs_(g.score)), 2).as_("average"),
             count_star().as_("games"),
         )
         .where(scope)
-        .group_by(g.player_name, g.season)
-        .having(count_star() >= 6)
-        .order_by(avg_(abs_(g.score)).desc())
-        .limit(5),
+        .group_by(player_key)
+        .having(count_star() >= min_avg_games)
+        .order_by(avg_(abs_(g.score)).desc(), count_star().desc())
     )
-    most_teams = fetch_dicts(
-        con,
+    most_teams = top(
         Query()
         .from_(g)
-        .select(g.player_name.as_("player"), count_distinct(g.team).as_("value"))
-        .where(scope)
-        .group_by(g.player_name)
-        .order_by(count_distinct(g.team).desc())
-        .limit(5),
+        .select(
+            any_value(g.player_id).as_("player_id"),
+            any_value(g.player_name).as_("player_name"),
+            count_distinct(team_slot).as_("value"),
+            list_distinct(team_slot).as_("teams"),
+        )
+        .where(scope, g.team.is_not_null())
+        .group_by(player_key)
+        .having(count_distinct(team_slot) >= _MIN_TEAMS_REPRESENTED)
+        .order_by(count_distinct(team_slot).desc(), any_value(g.player_name).asc())
     )
-    most_leagues = fetch_dicts(
-        con,
+    most_leagues = top(
         Query()
         .from_(g)
-        .select(g.player_name.as_("player"), count_distinct(g.event).as_("value"))
-        .where(scope)
-        .group_by(g.player_name)
-        .order_by(count_distinct(g.event).desc())
-        .limit(5),
+        .select(
+            any_value(g.player_id).as_("player_id"),
+            any_value(g.player_name).as_("player_name"),
+            count_distinct(g.event).as_("value"),
+            list_distinct(g.event).as_("leagues"),
+        )
+        .where(scope, g.event.is_not_null())
+        .group_by(player_key)
+        .having(count_distinct(g.event) >= _MIN_LEAGUES_SEEN)
+        .order_by(count_distinct(g.event).desc(), any_value(g.player_name).asc())
     )
 
-    def pack(rows, extra=None):
-        out = []
-        for r in rows:
-            item = {"player": as_str(r["player"]), "value": r.get("value")}
-            if extra:
-                for key in extra:
-                    item[key] = r.get(key)
-            out.append(item)
-        return out
+    most_seasons: list[dict[str, Any]] = []
+    best_seasons: list[dict[str, Any]] = []
+    if not season:
+        most_seasons = top(
+            Query()
+            .from_(g)
+            .select(
+                any_value(g.player_id).as_("player_id"),
+                any_value(g.player_name).as_("player_name"),
+                count_distinct(g.season).as_("value"),
+            )
+            .where(scope)
+            .group_by(player_key)
+            .order_by(count_distinct(g.season).desc(), any_value(g.player_name).asc())
+        )
+        best_seasons = top(
+            Query()
+            .from_(g)
+            .select(
+                any_value(g.player_id).as_("player_id"),
+                any_value(g.player_name).as_("player_name"),
+                g.season,
+                round_(avg_(abs_(g.score)), 2).as_("value"),
+                round_(avg_(abs_(g.score)), 2).as_("average"),
+                count_star().as_("games"),
+            )
+            .where(scope)
+            .group_by(player_key, g.season)
+            .having(count_star() >= _MIN_GAMES_SEASON)
+            .order_by(avg_(abs_(g.score)).desc(), count_star().desc())
+        )
 
     return {
-        "most_seasons": pack(most_seasons),
-        "most_games": pack(most_games),
-        "highest_average": pack(highest_average, ["games"]),
-        "best_seasons": pack(best_seasons, ["season", "games"]),
-        "most_teams_represented": pack(most_teams),
-        "most_leagues_seen": pack(most_leagues),
+        "most_seasons": [_legend_entry(row) for row in most_seasons],
+        "most_games": [_legend_entry(row, extras=("games", "average")) for row in most_games],
+        "highest_average": [_legend_entry(row, extras=("games", "average")) for row in highest_average],
+        "best_seasons": [_legend_entry(row, extras=("season", "games", "average")) for row in best_seasons],
+        "most_teams_represented": [_legend_entry(row, extras=("teams",)) for row in most_teams],
+        "most_leagues_seen": [_legend_entry(row, extras=("leagues",)) for row in most_leagues],
     }

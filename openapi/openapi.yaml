@@ -384,6 +384,42 @@ paths:
             application/json:
               schema: { type: object }
 
+  /api/v1/clubs/legends:
+    get:
+      tags: [clubs]
+      operationId: getClubLegendsQuery
+      summary: Club legends (query alias)
+      parameters:
+        - { name: club, in: query, required: true, schema: { type: string } }
+        - { name: season, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Club legends document
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/clubs/{club}/legends:
+    get:
+      tags: [clubs]
+      operationId: getClubLegends
+      summary: Player highlights for a club
+      parameters:
+        - $ref: "#/components/parameters/ClubPath"
+        - { name: season, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Club legends document
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
   /api/v1/clubs/{club}/players:
     get:
       tags: [clubs]
