@@ -38,6 +38,7 @@ from bowlyzerapi.queries.tournament import (
     tournament_document,
     tournament_list,
     tournament_player_section,
+    tournament_players,
     tournament_podiums,
 )
 from bowlyzerapi.warehouse import connect, warehouse_path
@@ -328,19 +329,47 @@ def h_player(p, qs):
     return 200, player_document(p["id"], club=qs.get("club") or None, season=qs.get("season") or None)
 
 
-def h_player_tournaments(p, _q):
-    return 200, player_tournaments(p["id"])
+def h_player_tournaments(p, qs):
+    return 200, player_tournaments(
+        p["id"],
+        season=qs.get("season") or None,
+        event=qs.get("event") or qs.get("tournament") or None,
+    )
+
+
+def h_player_tournaments_query(_p, qs):
+    ident = (qs.get("player") or qs.get("id") or "").strip()
+    if not ident:
+        return _missing("Query param player is required.")
+    return 200, player_tournaments(
+        ident,
+        season=qs.get("season") or None,
+        event=qs.get("event") or qs.get("tournament") or None,
+    )
 
 
 def h_tournaments(_p, qs):
-    return 200, tournament_list(season=qs.get("season") or None, club=qs.get("club") or None)
+    return 200, tournament_list(
+        season=qs.get("season") or None,
+        club=qs.get("club") or None,
+        event=qs.get("event") or qs.get("tournament") or None,
+    )
 
 
 def h_podiums(_p, qs):
     return 200, tournament_podiums(
         season=qs.get("season") or None,
         club=qs.get("club") or None,
+        event=qs.get("event") or qs.get("tournament") or None,
         n=_int(qs, "n") or 3,
+    )
+
+
+def h_tournament_players(_p, qs):
+    return 200, tournament_players(
+        season=qs.get("season") or None,
+        event=qs.get("event") or qs.get("tournament") or None,
+        round=_int(qs, "round"),
     )
 
 
@@ -349,15 +378,29 @@ def h_tournament_section(_p, qs):
     event = (qs.get("event") or qs.get("tournament") or "").strip()
     if not season or not event:
         return _missing("Query params season and event are required.")
-    return 200, tournament_document(season, event)
+    return 200, tournament_document(season, event, round=_int(qs, "round"), n=_int(qs, "n") or 5)
 
 
-def h_tournament(p, _q):
-    return 200, tournament_document(p["season"], p["event"])
+def h_tournament(p, qs):
+    return 200, tournament_document(
+        p["season"],
+        p["event"],
+        round=_int(qs, "round"),
+        n=_int(qs, "n") or 5,
+    )
 
 
 def h_tournament_player(p, _q):
     return 200, tournament_player_section(p["season"], p["event"], p["player"])
+
+
+def h_tournament_player_query(_p, qs):
+    season = (qs.get("season") or "").strip()
+    event = (qs.get("event") or qs.get("tournament") or "").strip()
+    player = (qs.get("player") or "").strip()
+    if not season or not event or not player:
+        return _missing("Query params season, event, and player are required.")
+    return 200, tournament_player_section(season, event, player)
 
 
 # Static segments before parameterized siblings.
@@ -399,10 +442,13 @@ ROUTES: list[tuple[list[str], Handler]] = [
     (["api", "v1", "players", "seasons"], h_player_seasons),
     (["api", "v1", "players", "highlights"], h_player_highlights),
     (["api", "v1", "players", "games"], h_player_highlights),
+    (["api", "v1", "players", "tournaments"], h_player_tournaments_query),
     (["api", "v1", "players", "{id}", "tournaments"], h_player_tournaments),
     (["api", "v1", "players", "{id}"], h_player),
     (["api", "v1", "players"], h_players),
     (["api", "v1", "tournaments", "podiums"], h_podiums),
+    (["api", "v1", "tournaments", "players"], h_tournament_players),
+    (["api", "v1", "tournaments", "player"], h_tournament_player_query),
     (["api", "v1", "tournaments", "section"], h_tournament_section),
     (["api", "v1", "tournaments", "{season}", "{event}", "players", "{player}"], h_tournament_player),
     (["api", "v1", "tournaments", "{season}", "{event}"], h_tournament),

@@ -40,17 +40,19 @@ Contract: [`openapi/openapi.yaml`](../openapi/openapi.yaml). Spike results:
 | `GET /api/v1/teams/{team}` | yes | History, leagues, clutch, consistency, special matches |
 | `GET /api/v1/players` | yes | `?q=&club=` |
 | `GET /api/v1/players/{id}` | yes | Lifetime + competitions + highlights |
-| `GET /api/v1/players/{id}/tournaments` | yes | Positions from kernel leaderboard (no KO) |
-| `GET /api/v1/tournaments` | yes | Catalog |
-| `GET /api/v1/tournaments/podiums` | yes | Top-N from kernel ranks (no KO) |
-| `GET /api/v1/tournaments/{season}/{event}` | yes | Leaderboard, field-progress, rounds, cards, round_results, format. **No KO.** |
+| `GET /api/v1/players/{id}/tournaments` | yes | Positions from kernel leaderboard (no KO); `?season=&event=` |
+| `GET /api/v1/tournaments` | yes | Catalog; `?season=&club=&event=` returns `seasons` / `events` (group names) |
+| `GET /api/v1/tournaments/podiums` | yes | Top-N from kernel ranks (no KO); `?event=` is group name |
+| `GET /api/v1/tournaments/{season}/{event}` | yes | Leaderboard, field-progress overlays, rounds, cards, round_results, best_efforts, format, players. `?round=&n=`. **No KO.** |
 | `GET /api/v1/tournaments/{season}/{event}/players/{player}` | yes | Player section from kernel (no KO) |
+| `GET /api/v1/tournaments/players` | yes | Player catalog; `?season=&event=&round=` |
+| `GET /api/v1/tournaments/player` | yes | Query alias for player section (`season`, `event`, `player`) |
 
 JSON uses named objects, not Flask `TableData`. KO bracket is `null` until ported.
 
 Query aliases (`/leagues/standings?season=&league=`, `/leagues/timetable`,
 `/leagues/compare`, `/leagues/matchdays/{week}`, `/leagues/records?league=`,
-`/tournaments/section?season=&event=`, `/clubs/history?club=`) skip `%2F` in
+`/tournaments/section?season=&event=&round=`, `/tournaments/player?season=&event=&player=`, `/clubs/history?club=`) skip `%2F` in
 path seasons. Season-first identity is `/leagues/{season}/{league}/…`, parallel
 to `/tournaments/{season}/{event}`. Cross-season records live at
 `/leagues/{league}/records`.

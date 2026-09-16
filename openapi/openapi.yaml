@@ -715,7 +715,8 @@ paths:
       operationId: getTournament
       summary: Tournament document (get_section grain)
       description: |
-        Leaderboard, field-progress ranks, rounds, cards, round_results, format.
+        Leaderboard, field-progress ranks, rounds, cards, round_results, best_efforts, format.
+        Query `round` scopes leaderboard / round_results / best_efforts to one stage.
         `ko_bracket` is null until ported.
       parameters:
         - $ref: "#/components/parameters/SeasonPath"
@@ -802,6 +803,8 @@ paths:
       parameters:
         - $ref: "#/components/parameters/SeasonQuery"
         - $ref: "#/components/parameters/EventQuery"
+        - { name: round, in: query, schema: { type: integer } }
+        - { name: n, in: query, schema: { type: integer, default: 5 } }
       responses:
         "200":
           description: Tournament kernel
@@ -1075,20 +1078,25 @@ components:
           $ref: "#/components/schemas/FieldProgress"
         cards:
           type: array
-          description: Not implemented (Flask `get_summary_cards`)
           items:
             type: object
         round_results:
-          description: Not implemented (Flask round table)
-          nullable: true
+          type: array
+          items:
+            type: object
         rounds:
           type: array
-          description: Not implemented
           items:
             type: object
         best_efforts:
-          description: Not implemented
+          type: object
           nullable: true
+        players:
+          type: array
+          items:
+            type: object
+        format:
+          type: object
         ko_bracket:
           description: Not implemented — stays in-process / Flask until ported
           nullable: true

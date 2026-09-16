@@ -29,6 +29,7 @@ from bowlyzerapi.engine import (
 from bowlyzerapi.queries.filters import is_bye, is_league_fact, is_player_game, resolve_club
 from bowlyzerapi.queries.identity import collapse_player_catalog, canonical_player_names
 from bowlyzerapi.queries.tournament import tournament_section
+from bowlyzerapi.queries.tournament_names import normalize_tournament_group_name
 from bowlyzerapi.queries.util import as_float, as_int, as_str
 from bowlyzerapi.warehouse import session
 
@@ -1106,38 +1107,51 @@ def _player_event_ranks(con, player_id: str | None, player_name: str | None) -> 
     return out
 
 
-def player_tournaments(ident: str) -> dict[str, Any]:
+def player_tournaments(
+    ident: str,
+    *,
+    season: str | None = None,
+    event: str | None = None,
+) -> dict[str, Any]:
     t = tournament_line
+    group_filter = normalize_tournament_group_name(event) if event else ""
     with session() as con:
         player_id, player_name = _resolve_player(con, ident)
         if not player_name and not player_id:
             return {"player_id": None, "player_name": ident, "results": []}
         who = _who(t, player_id, player_name)
-        pairs = fetch_dicts(
-            con,
+        q = (
             Query()
             .from_(t)
             .select(t.season, t.event, t.club, round_(avg_(t.score), 2).as_("average"))
             .where(~is_bye(t.player_name), who)
             .group_by(t.season, t.event, t.club)
-            .order_by(t.season.desc(), t.event),
+            .order_by(t.season.desc(), t.event)
         )
+        if season:
+            q = q.where(t.season == season)
+        pairs = fetch_dicts(con, q)
     results = []
     for row in pairs:
-        section = tournament_section(str(row["season"]), str(row["event"]))
+        event_name = as_str(row["event"]) or ""
+        group = normalize_tournament_group_name(event_name) or event_name
+        if group_filter and group != group_filter and event_name != event:
+            continue
+        section = tournament_section(str(row["season"]), event_name)
         lb = next(
             (
                 r
                 for r in section["leaderboard"]
                 if (player_id and r.get("player_id") == player_id)
-                or (player_name and r.get("player_name") == player_name)
+                or (player_name and str(r.get("player_name") or r.get("player") or "") == player_name)
             ),
             None,
         )
         results.append(
             {
                 "season": as_str(row["season"]),
-                "tournament": as_str(row["event"]),
+                "tournament": group or event_name,
+                "tournament_group": group or event_name,
                 "position": lb["rank"] if lb else None,
                 "average": as_float(row["average"]),
                 "club": as_str(row["club"]),
