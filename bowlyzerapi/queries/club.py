@@ -277,16 +277,45 @@ def club_players(club: str, *, season: str | None = None) -> dict[str, Any]:
     }
 
 
+def _team_number(team: str | None) -> int | None:
+    if not team:
+        return None
+    match = _TEAM_NUMBER.search(team)
+    return int(match.group(1)) if match else None
+
+
+def _honor_game(row: dict[str, Any], *, is_tournament: bool) -> dict[str, Any]:
+    team_name = as_str(row.get("team") or row.get("team_name"))
+    return {
+        "player_name": as_str(row.get("player_name") or row.get("player")) or "",
+        "player_id": as_str(row.get("player_id")) or "",
+        "score": as_int(row.get("score")),
+        "date": as_str(row.get("game_date") or row.get("date")),
+        "season": as_str(row.get("season")),
+        "competition": as_str(row.get("competition")),
+        "is_tournament": is_tournament,
+        "club": as_str(row.get("club")),
+        "team_name": team_name,
+        "team_number": _team_number(team_name),
+        "week": as_int(row.get("week")) if not is_tournament else None,
+        "round_number": as_int(row.get("round_number") if row.get("round_number") is not None else row.get("round")),
+    }
+
+
 def club_honor_300(club: str | None = None) -> dict[str, Any]:
+    """Perfect games, newest first. Optional filter is games played *for* the club."""
     g = game_line
     t = tournament_line
+    club = (club or "").strip() or None
     with session() as con:
         canonical = resolve_club(con, club) if club else None
+        if club and canonical is None:
+            return {"club": club, "games": []}
         league_q = (
             Query()
             .from_(g)
             .select(
-                g.player_name.as_("player"),
+                g.player_name,
                 g.player_id,
                 g.score,
                 g.game_date,
@@ -297,21 +326,24 @@ def club_honor_300(club: str | None = None) -> dict[str, Any]:
                 g.week,
                 g.round_number,
             )
-            .where(is_player_game(g), ~is_bye(g.player_name), g.score == 300)
+            .where(
+                is_league_fact(g),
+                is_player_game(g),
+                ~is_bye(g.player_name),
+                g.score == 300,
+            )
         )
         tourney_q = (
             Query()
             .from_(t)
             .select(
-                t.player_name.as_("player"),
+                t.player_name,
                 t.player_id,
                 t.score,
                 t.game_date,
                 t.season,
                 t.event.as_("competition"),
                 t.club,
-                t.club.as_("team"),
-                t.round_number.as_("week"),
                 t.round_number,
             )
             .where(~is_bye(t.player_name), t.score == 300)
@@ -319,26 +351,12 @@ def club_honor_300(club: str | None = None) -> dict[str, Any]:
         if canonical:
             league_q = league_q.where(lower(trim(g.club)) == lower(trim(canonical)))
             tourney_q = tourney_q.where(lower(trim(t.club)) == lower(trim(canonical)))
-        rows = fetch_dicts(con, league_q) + fetch_dicts(con, tourney_q)
-    rows.sort(key=lambda r: str(r.get("game_date") or ""), reverse=True)
-    return {
-        "club": canonical,
-        "games": [
-            {
-                "player": as_str(r["player"]),
-                "player_id": as_str(r["player_id"]),
-                "score": as_int(r["score"]),
-                "date": as_str(r["game_date"]),
-                "season": as_str(r["season"]),
-                "competition": as_str(r["competition"]),
-                "club": as_str(r["club"]),
-                "team": as_str(r["team"]),
-                "week": as_int(r.get("week")),
-                "round": as_int(r.get("round_number")),
-            }
-            for r in rows
-        ],
-    }
+        league_rows = fetch_dicts(con, league_q)
+        tourney_rows = fetch_dicts(con, tourney_q)
+    games = [_honor_game(row, is_tournament=False) for row in league_rows]
+    games.extend(_honor_game(row, is_tournament=True) for row in tourney_rows)
+    games.sort(key=lambda row: str(row.get("date") or ""), reverse=True)
+    return {"club": canonical, "games": games}
 
 
 def _count_entries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
