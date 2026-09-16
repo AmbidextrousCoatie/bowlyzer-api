@@ -526,10 +526,90 @@ paths:
       parameters:
         - { name: q, in: query, schema: { type: string } }
         - { name: club, in: query, schema: { type: string } }
-        - { name: limit, in: query, schema: { type: integer, default: 50 } }
+        - { name: limit, in: query, schema: { type: integer } }
       responses:
         "200":
-          description: Player search hits
+          description: Player catalog (`players: [{id, name}]`). Empty q returns the full list.
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/players/stats:
+    get:
+      tags: [players]
+      operationId: getPlayerStatsQuery
+      summary: Lifetime stats (query alias; empty player = all-players aggregate)
+      parameters:
+        - { name: player_id, in: query, schema: { type: string } }
+        - { name: player, in: query, schema: { type: string } }
+        - { name: club, in: query, schema: { type: string } }
+        - { name: season, in: query, schema: { type: string } }
+        - { name: top_n, in: query, schema: { type: integer, default: 10 }, description: All-players highlight lists (max 50) }
+      responses:
+        "200":
+          description: Player or all-players lifetime document
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/players/document:
+    get:
+      tags: [players]
+      operationId: getPlayerDocumentQuery
+      summary: Same payload as /players/stats
+      parameters:
+        - { name: player_id, in: query, schema: { type: string } }
+        - { name: player, in: query, schema: { type: string } }
+        - { name: club, in: query, schema: { type: string } }
+        - { name: season, in: query, schema: { type: string } }
+        - { name: top_n, in: query, schema: { type: integer, default: 10 } }
+      responses:
+        "200":
+          description: Player lifetime document
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/players/seasons:
+    get:
+      tags: [players]
+      operationId: getPlayerSeasonsQuery
+      parameters:
+        - { name: player_id, in: query, schema: { type: string } }
+        - { name: player, in: query, schema: { type: string } }
+        - { name: club, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Season list for a player, club, or the warehouse
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/players/highlights:
+    get:
+      tags: [players]
+      operationId: getPlayerHighlightsQuery
+      parameters:
+        - { name: player_id, in: query, schema: { type: string } }
+        - { name: player, in: query, schema: { type: string } }
+        - { name: club, in: query, schema: { type: string } }
+        - { name: season, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 10 } }
+      responses:
+        "200":
+          description: Highest individual games
           headers:
             X-Data-Revision:
               $ref: "#/components/headers/XDataRevision"

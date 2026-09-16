@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -25,9 +26,17 @@ class Handler(BaseHTTPRequestHandler):
         if revision and "revision" not in body and status < 400:
             body = {**body, "revision": revision}
         payload = _json(body)
+        accept = (self.headers.get("Accept-Encoding") or "").lower()
+        encoding = None
+        if "gzip" in accept and len(payload) > 2048:
+            payload = gzip.compress(payload, compresslevel=5)
+            encoding = "gzip"
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
+        if encoding:
+            self.send_header("Content-Encoding", encoding)
+            self.send_header("Vary", "Accept-Encoding")
         if revision:
             self.send_header("X-Data-Revision", str(revision))
         self.end_headers()

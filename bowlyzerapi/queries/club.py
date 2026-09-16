@@ -38,6 +38,7 @@ from bowlyzerapi.queries.filters import (
     pins,
     resolve_club,
 )
+from bowlyzerapi.queries.identity import apply_canonical_player_names
 from bowlyzerapi.queries.util import as_float, as_int, as_str
 from bowlyzerapi.warehouse import connect, session
 
@@ -218,6 +219,7 @@ def club_legends(club: str, *, season: str | None = None) -> dict[str, Any]:
         if canonical is None:
             return {"club": club, **_empty_legends()}
         legends = _legends(con, canonical, season)
+        _canonicalize_legends(con, legends)
     return {"club": canonical, **legends}
 
 
@@ -227,45 +229,61 @@ def club_document(club: str, *, season: str | None = None) -> dict[str, Any]:
         if canonical is None:
             return {"club": club, "legends": _empty_legends()}
         legends = _legends(con, canonical, season)
+        _canonicalize_legends(con, legends)
     history = club_history(canonical)
     return {"club": canonical, "legends": legends, "history": history}
 
 
+def _club_member_games(canonical: str, season: str | None) -> Query:
+    """League + tournament games attributed to this club (same scope as player club totals)."""
+    g = game_line
+    t = tournament_line
+    pk_g = coalesce(nullif(trim(g.player_id), ""), g.player_name)
+    pk_t = coalesce(nullif(trim(t.player_id), ""), t.player_name)
+    league = (
+        Query()
+        .from_(g)
+        .select(pk_g.as_("pk"), g.player_id, g.player_name, g.season, g.score)
+        .where(
+            is_league_fact(g),
+            is_player_game(g),
+            ~is_bye(g.player_name),
+            lower(trim(g.club)) == lower(trim(canonical)),
+            pk_g.is_not_null(),
+            trim(pk_g) != "",
+            g.score.is_not_null(),
+        )
+    )
+    tourney = (
+        Query()
+        .from_(t)
+        .select(pk_t.as_("pk"), t.player_id, t.player_name, t.season, t.score)
+        .where(
+            ~is_bye(t.player_name),
+            lower(trim(t.club)) == lower(trim(canonical)),
+            pk_t.is_not_null(),
+            trim(pk_t) != "",
+            t.score.is_not_null(),
+        )
+    )
+    if season:
+        league = league.where(g.season == season)
+        tourney = tourney.where(t.season == season)
+    return league.union_all(tourney)
+
+
 def club_players(club: str, *, season: str | None = None) -> dict[str, Any]:
-    """One row per player for club league games (optional season)."""
+    """One row per player for club league + tournament games (optional season)."""
     club = (club or "").strip()
     season = (season or "").strip() or None
     empty = {"club": club, "season": season, "latest_season": None, "players": []}
     if not club:
         return empty
-    g = game_line
-    player_key = coalesce(nullif(trim(g.player_id), ""), g.player_name)
     with session() as con:
         canonical = resolve_club(con, club)
         if canonical is None:
             return empty
-        games = (
-            Query()
-            .from_(g)
-            .select(
-                player_key.as_("pk"),
-                g.player_id,
-                g.player_name,
-                g.season,
-                g.score,
-            )
-            .where(
-                is_league_fact(g),
-                is_player_game(g),
-                ~is_bye(g.player_name),
-                lower(trim(g.club)) == lower(trim(canonical)),
-                player_key.is_not_null(),
-                trim(player_key) != "",
-                g.score.is_not_null(),
-            )
-        )
-        if season:
-            games = games.where(g.season == season)
+        games = _club_member_games(canonical, season)
         gk = relation("games", "pk", "player_id", "player_name", "season", "score")
         lifetime = (
             Query()
@@ -358,27 +376,28 @@ def club_players(club: str, *, season: str | None = None) -> dict[str, Any]:
             )
             .order_by(lt.average.desc(), lt.games.desc(), lt.player_name),
         )
-    latest_season = as_str(rows[0]["latest_season"]) if rows else None
-    players: list[dict[str, Any]] = []
-    for index, row in enumerate(rows, start=1):
-        name = as_str(row.get("player_name")) or as_str(row.get("player")) or ""
-        if not name:
-            continue
-        avg = as_float(row.get("average"))
-        best_avg = as_float(row.get("best_season_average"))
-        players.append(
-            {
-                "rank": index,
-                "player_id": as_str(row.get("player_id")) or "",
-                "player_name": name,
-                "games": as_int(row.get("games")) or 0,
-                "average": avg,
-                "best_season": as_str(row.get("best_season")),
-                "best_season_average": best_avg,
-                "membership_seasons": as_int(row.get("membership_seasons")) or 0,
-                "club_active": bool(row.get("club_active")),
-            }
-        )
+        latest_season = as_str(rows[0]["latest_season"]) if rows else None
+        players: list[dict[str, Any]] = []
+        for index, row in enumerate(rows, start=1):
+            name = as_str(row.get("player_name")) or as_str(row.get("player")) or ""
+            if not name:
+                continue
+            avg = as_float(row.get("average"))
+            best_avg = as_float(row.get("best_season_average"))
+            players.append(
+                {
+                    "rank": index,
+                    "player_id": as_str(row.get("player_id")) or "",
+                    "player_name": name,
+                    "games": as_int(row.get("games")) or 0,
+                    "average": avg,
+                    "best_season": as_str(row.get("best_season")),
+                    "best_season_average": best_avg,
+                    "membership_seasons": as_int(row.get("membership_seasons")) or 0,
+                    "club_active": bool(row.get("club_active")),
+                }
+            )
+        apply_canonical_player_names(con, players)
     return {
         "club": canonical,
         "season": season,
@@ -463,8 +482,9 @@ def club_honor_300(club: str | None = None) -> dict[str, Any]:
             tourney_q = tourney_q.where(lower(trim(t.club)) == lower(trim(canonical)))
         league_rows = fetch_dicts(con, league_q)
         tourney_rows = fetch_dicts(con, tourney_q)
-    games = [_honor_game(row, is_tournament=False) for row in league_rows]
-    games.extend(_honor_game(row, is_tournament=True) for row in tourney_rows)
+        games = [_honor_game(row, is_tournament=False) for row in league_rows]
+        games.extend(_honor_game(row, is_tournament=True) for row in tourney_rows)
+        apply_canonical_player_names(con, games)
     games.sort(key=lambda row: str(row.get("date") or ""), reverse=True)
     return {"club": canonical, "games": games}
 
@@ -809,6 +829,11 @@ def _empty_legends() -> dict[str, list]:
     }
 
 
+def _canonicalize_legends(con, legends: dict[str, Any]) -> None:
+    for key in _empty_legends():
+        apply_canonical_player_names(con, legends.get(key) or [])
+
+
 def _str_list(value: Any) -> list[str]:
     if value is None:
         return []
@@ -869,38 +894,39 @@ def _legends(con, club: str, season: str | None) -> dict[str, Any]:
     if season:
         scope = scope & (g.season == season)
     min_avg_games = _MIN_GAMES_SEASON if season else _MIN_GAMES_ALLTIME_AVG
+    played = _club_member_games(club, season)
+    p = relation("played", "pk", "player_id", "player_name", "season", "score")
+
+    def from_played() -> Query:
+        return Query.with_ctes(played=played).from_(p)
 
     def top(query: Query) -> list[dict[str, Any]]:
         return fetch_dicts(con, query.limit(_LEGEND_TOP_N))
 
     most_games = top(
-        Query()
-        .from_(g)
+        from_played()
         .select(
-            any_value(g.player_id).as_("player_id"),
-            any_value(g.player_name).as_("player_name"),
+            any_value(p.player_id).as_("player_id"),
+            any_value(p.player_name).as_("player_name"),
             count_star().as_("value"),
             count_star().as_("games"),
-            round_(avg_(abs_(g.score)), 2).as_("average"),
+            round_(avg_(abs_(p.score)), 2).as_("average"),
         )
-        .where(scope)
-        .group_by(player_key)
-        .order_by(count_star().desc(), any_value(g.player_name).asc())
+        .group_by(p.pk)
+        .order_by(count_star().desc(), any_value(p.player_name).asc())
     )
     highest_average = top(
-        Query()
-        .from_(g)
+        from_played()
         .select(
-            any_value(g.player_id).as_("player_id"),
-            any_value(g.player_name).as_("player_name"),
-            round_(avg_(abs_(g.score)), 2).as_("value"),
-            round_(avg_(abs_(g.score)), 2).as_("average"),
+            any_value(p.player_id).as_("player_id"),
+            any_value(p.player_name).as_("player_name"),
+            round_(avg_(abs_(p.score)), 2).as_("value"),
+            round_(avg_(abs_(p.score)), 2).as_("average"),
             count_star().as_("games"),
         )
-        .where(scope)
-        .group_by(player_key)
+        .group_by(p.pk)
         .having(count_star() >= min_avg_games)
-        .order_by(avg_(abs_(g.score)).desc(), count_star().desc())
+        .order_by(avg_(abs_(p.score)).desc(), count_star().desc())
     )
     most_teams = top(
         Query()
@@ -935,32 +961,28 @@ def _legends(con, club: str, season: str | None) -> dict[str, Any]:
     best_seasons: list[dict[str, Any]] = []
     if not season:
         most_seasons = top(
-            Query()
-            .from_(g)
+            from_played()
             .select(
-                any_value(g.player_id).as_("player_id"),
-                any_value(g.player_name).as_("player_name"),
-                count_distinct(g.season).as_("value"),
+                any_value(p.player_id).as_("player_id"),
+                any_value(p.player_name).as_("player_name"),
+                count_distinct(p.season).as_("value"),
             )
-            .where(scope)
-            .group_by(player_key)
-            .order_by(count_distinct(g.season).desc(), any_value(g.player_name).asc())
+            .group_by(p.pk)
+            .order_by(count_distinct(p.season).desc(), any_value(p.player_name).asc())
         )
         best_seasons = top(
-            Query()
-            .from_(g)
+            from_played()
             .select(
-                any_value(g.player_id).as_("player_id"),
-                any_value(g.player_name).as_("player_name"),
-                g.season,
-                round_(avg_(abs_(g.score)), 2).as_("value"),
-                round_(avg_(abs_(g.score)), 2).as_("average"),
+                any_value(p.player_id).as_("player_id"),
+                any_value(p.player_name).as_("player_name"),
+                p.season,
+                round_(avg_(abs_(p.score)), 2).as_("value"),
+                round_(avg_(abs_(p.score)), 2).as_("average"),
                 count_star().as_("games"),
             )
-            .where(scope)
-            .group_by(player_key, g.season)
+            .group_by(p.pk, p.season)
             .having(count_star() >= _MIN_GAMES_SEASON)
-            .order_by(avg_(abs_(g.score)).desc(), count_star().desc())
+            .order_by(avg_(abs_(p.score)).desc(), count_star().desc())
         )
 
     return {

@@ -29,6 +29,7 @@ class Query:
         self._having: list[Expr] = []
         self._joins: list[tuple[str, FromItem, Expr]] = []
         self._order: list[OrderTerm] = []
+        self._unions: list[Query] = []
         self._distinct = False
         self._limit: int | None = None
         self._alias: str | None = None
@@ -95,6 +96,10 @@ class Query:
         self._limit = n
         return self
 
+    def union_all(self, other: Query) -> Query:
+        self._unions.append(other)
+        return self
+
     def as_(self, alias: str) -> Query:
         quote_ident(alias)
         self._alias = alias
@@ -122,8 +127,22 @@ class Query:
                 inner = query._compile_body(params, include_ctes=True)
                 cte_sql.append(f"{quote_ident(name)} AS (\n{inner}\n)")
             parts.append("WITH " + ",\n".join(cte_sql))
-        if not self._from and not self._ctes:
+        trailing_order = bool(self._unions)
+        parts.append(self._compile_select(params, with_order_limit=not trailing_order))
+        for other in self._unions:
+            parts.append("UNION ALL")
+            parts.append(other._compile_select(params, with_order_limit=False))
+        if trailing_order:
+            if self._order:
+                parts.append("ORDER BY " + ", ".join(o.compile(params) for o in self._order))
+            if self._limit is not None:
+                parts.append(f"LIMIT {int(self._limit)}")
+        return "\n".join(parts)
+
+    def _compile_select(self, params: list[Any], *, with_order_limit: bool) -> str:
+        if not self._from and not self._ctes and not self._unions:
             raise ValueError("Query has no FROM")
+        parts: list[str] = []
         select_kw = "SELECT DISTINCT" if self._distinct else "SELECT"
         if self._select:
             select_list = ",\n    ".join(_select_item(e, params) for e in self._select)
@@ -153,10 +172,11 @@ class Query:
             for extra in self._having[1:]:
                 pred = pred & extra
             parts.append(f"HAVING {pred.compile(params)}")
-        if self._order:
-            parts.append("ORDER BY " + ", ".join(o.compile(params) for o in self._order))
-        if self._limit is not None:
-            parts.append(f"LIMIT {int(self._limit)}")
+        if with_order_limit:
+            if self._order:
+                parts.append("ORDER BY " + ", ".join(o.compile(params) for o in self._order))
+            if self._limit is not None:
+                parts.append(f"LIMIT {int(self._limit)}")
         return "\n".join(parts)
 
 

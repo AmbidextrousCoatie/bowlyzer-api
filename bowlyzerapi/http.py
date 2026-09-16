@@ -24,7 +24,14 @@ from bowlyzerapi.queries.league import (
     timetable,
 )
 from bowlyzerapi.queries.meta import catalog
-from bowlyzerapi.queries.player import player_document, player_tournaments, search_players
+from bowlyzerapi.queries.player import (
+    player_aggregate,
+    player_document,
+    player_highest_games,
+    player_seasons,
+    player_tournaments,
+    search_players,
+)
 from bowlyzerapi.queries.team import team_document, team_list
 from bowlyzerapi.queries.tournament import (
     tournament_document,
@@ -261,8 +268,38 @@ def h_team(p, qs):
     return 200, team_document(p["team"], season=qs.get("season") or None)
 
 
+def _player_ident(qs: dict[str, str]) -> str:
+    return (qs.get("player_id") or qs.get("player") or qs.get("player_name") or "").strip()
+
+
 def h_players(_p, qs):
-    return 200, search_players(q=qs.get("q") or None, club=qs.get("club") or None, limit=_int(qs, "limit") or 50)
+    return 200, search_players(
+        q=qs.get("q") or qs.get("search") or None,
+        club=qs.get("club") or None,
+        limit=_int(qs, "limit"),
+    )
+
+
+def h_player_stats(_p, qs):
+    ident = _player_ident(qs)
+    club = qs.get("club") or None
+    season = qs.get("season") or None
+    if ident:
+        return 200, player_document(ident, club=club, season=season, top_n=_int(qs, "top_n"))
+    return 200, player_aggregate(club=club, season=season, top_n=_int(qs, "top_n"))
+
+
+def h_player_seasons(_p, qs):
+    return 200, player_seasons(ident=_player_ident(qs) or None, club=qs.get("club") or None)
+
+
+def h_player_highlights(_p, qs):
+    return 200, player_highest_games(
+        ident=_player_ident(qs) or None,
+        club=qs.get("club") or None,
+        season=qs.get("season") or None,
+        limit=_int(qs, "limit") or 10,
+    )
 
 
 def h_player(p, qs):
@@ -332,6 +369,11 @@ ROUTES: list[tuple[list[str], Handler]] = [
     (["api", "v1", "clubs"], h_clubs),
     (["api", "v1", "teams", "{team}"], h_team),
     (["api", "v1", "teams"], h_teams),
+    (["api", "v1", "players", "stats"], h_player_stats),
+    (["api", "v1", "players", "document"], h_player_stats),
+    (["api", "v1", "players", "seasons"], h_player_seasons),
+    (["api", "v1", "players", "highlights"], h_player_highlights),
+    (["api", "v1", "players", "games"], h_player_highlights),
     (["api", "v1", "players", "{id}", "tournaments"], h_player_tournaments),
     (["api", "v1", "players", "{id}"], h_player),
     (["api", "v1", "players"], h_players),
