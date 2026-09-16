@@ -25,8 +25,9 @@ Contract: [`openapi/openapi.yaml`](../openapi/openapi.yaml). Spike results:
 | `GET /api/v1/leagues` | yes | Catalog; optional `?season=` |
 | `GET /api/v1/leagues/{season}/{league}/standings` | yes | Standings + honor + series + players; `view=history\|averages` |
 | `GET /api/v1/leagues/{season}/{league}/timetable` | yes | Week / date / location |
-| `GET /api/v1/leagues/{season}/{league}/matchdays/{week}` | yes | Table, honor, games; `?team=` details |
-| `GET /api/v1/leagues/{season}/{league}/compare` | yes | Team vs opponent cells; `?team_a=&team_b=` |
+| `GET /api/v1/leagues/{season}/{league}/matchdays/{week}` | yes | Table, honor, games, players; `?team=&view=classic\|individual\|h2h`; `?round=` game details |
+| `GET /api/v1/leagues/{season}/{league}/compare` | yes | Team vs opponent cells; `?week=` |
+| `GET /api/v1/leagues/team` | yes | Team-in-league performance + win% |
 | `GET /api/v1/leagues/{league}/records` | yes | Cross-season; optional `?season=` and `?metric=` |
 | `GET /api/v1/clubs` | yes | Club list |
 | `GET /api/v1/clubs/rankings` | yes | Pinfall, members, averages, wins |

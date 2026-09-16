@@ -21,6 +21,7 @@ from bowlyzerapi.queries.league import (
     matchday,
     records,
     season_standings,
+    team_in_league,
     timetable,
 )
 from bowlyzerapi.queries.meta import catalog
@@ -136,8 +137,11 @@ def h_home(_p, qs):
     return 200, home(limit=_int(qs, "limit") or 8)
 
 
-def h_season_standings(p, _q):
-    return 200, season_standings(p["season"])
+def h_season_standings(p, qs):
+    season = (p.get("season") or qs.get("season") or "").strip()
+    if not season:
+        return _missing("Season is required.")
+    return 200, season_standings(season)
 
 
 def h_leagues(_p, qs):
@@ -184,6 +188,7 @@ def h_matchday(p, qs):
         int(p["week"]),
         team=qs.get("team") or None,
         round_number=_int(qs, "round"),
+        view=qs.get("view") or None,
     )
 
 
@@ -192,7 +197,24 @@ def h_compare(p, qs):
     if scoped is None:
         return _missing("Season and league are required.")
     season, league = scoped
-    return 200, compare(season, league, team_a=qs.get("team_a") or None, team_b=qs.get("team_b") or None)
+    return 200, compare(
+        season,
+        league,
+        team_a=qs.get("team_a") or None,
+        team_b=qs.get("team_b") or None,
+        week=_int(qs, "week"),
+    )
+
+
+def h_league_team(p, qs):
+    scoped = _season_league(p, qs)
+    if scoped is None:
+        return _missing("Season and league are required.")
+    team = (p.get("team") or qs.get("team") or "").strip()
+    if not team:
+        return _missing("Team is required.")
+    season, league = scoped
+    return 200, team_in_league(season, league, team)
 
 
 def h_records(p, qs):
@@ -344,11 +366,13 @@ ROUTES: list[tuple[list[str], Handler]] = [
     (["api", "v1", "meta"], h_meta),
     (["api", "v1", "home"], h_home),
     (["api", "v1", "honor", "300"], h_honor),
+    (["api", "v1", "seasons", "standings"], h_season_standings),
     (["api", "v1", "seasons", "{season}", "standings"], h_season_standings),
     (["api", "v1", "leagues", "standings"], h_league_standings),
     (["api", "v1", "leagues", "timetable"], h_timetable),
     (["api", "v1", "leagues", "compare"], h_compare),
     (["api", "v1", "leagues", "records"], h_records),
+    (["api", "v1", "leagues", "team"], h_league_team),
     (["api", "v1", "leagues", "matchdays", "{week}"], h_matchday),
     (["api", "v1", "leagues", "{league}", "records"], h_records),
     (["api", "v1", "leagues", "{season}", "{league}", "standings"], h_league_standings),
@@ -356,6 +380,7 @@ ROUTES: list[tuple[list[str], Handler]] = [
     (["api", "v1", "leagues", "{season}", "{league}", "matchdays", "{week}"], h_matchday),
     (["api", "v1", "leagues", "{season}", "{league}", "compare"], h_compare),
     (["api", "v1", "leagues", "{season}", "{league}", "records"], h_records),
+    (["api", "v1", "leagues", "{season}", "{league}", "team"], h_league_team),
     (["api", "v1", "leagues"], h_leagues),
     (["api", "v1", "clubs", "rankings"], h_club_rankings),
     (["api", "v1", "clubs", "history"], h_club_history_query),

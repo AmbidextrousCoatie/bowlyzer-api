@@ -167,9 +167,29 @@ paths:
         - { name: league, in: query, required: true, schema: { type: string } }
         - { name: team_a, in: query, schema: { type: string } }
         - { name: team_b, in: query, schema: { type: string } }
+        - { name: week, in: query, schema: { type: integer } }
       responses:
         "200":
           description: Head-to-head cell matrix
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/v1/leagues/team:
+    get:
+      tags: [leagues]
+      operationId: getLeagueTeamQuery
+      summary: Team-in-league performance and win percentage
+      parameters:
+        - { name: season, in: query, required: true, schema: { type: string } }
+        - { name: league, in: query, required: true, schema: { type: string } }
+        - { name: team, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Weekly player averages and win percentages
           headers:
             X-Data-Revision:
               $ref: "#/components/headers/XDataRevision"
@@ -187,6 +207,7 @@ paths:
         - { name: league, in: query, required: true, schema: { type: string } }
         - { name: team, in: query, schema: { type: string } }
         - { name: round, in: query, schema: { type: integer } }
+        - { name: view, in: query, schema: { type: string, enum: [classic, individual, h2h] } }
       responses:
         "200":
           description: Matchday document
@@ -263,6 +284,7 @@ paths:
         - { name: week, in: path, required: true, schema: { type: integer } }
         - { name: team, in: query, schema: { type: string } }
         - { name: round, in: query, schema: { type: integer } }
+        - { name: view, in: query, schema: { type: string, enum: [classic, individual, h2h] } }
       responses:
         "200":
           description: Matchday document
@@ -282,6 +304,7 @@ paths:
         - $ref: "#/components/parameters/LeaguePath"
         - { name: team_a, in: query, schema: { type: string } }
         - { name: team_b, in: query, schema: { type: string } }
+        - { name: week, in: query, schema: { type: integer } }
       responses:
         "200":
           description: Head-to-head cell matrix
