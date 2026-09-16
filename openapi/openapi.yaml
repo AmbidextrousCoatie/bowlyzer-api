@@ -420,6 +420,24 @@ paths:
             application/json:
               schema: { type: object }
 
+  /api/v1/clubs/players:
+    get:
+      tags: [clubs]
+      operationId: getClubPlayersQuery
+      summary: Club player results (query alias)
+      parameters:
+        - { name: club, in: query, required: true, schema: { type: string } }
+        - { name: season, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Club player results
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
   /api/v1/clubs/{club}/players:
     get:
       tags: [clubs]

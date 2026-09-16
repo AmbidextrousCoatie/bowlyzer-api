@@ -232,48 +232,158 @@ def club_document(club: str, *, season: str | None = None) -> dict[str, Any]:
 
 
 def club_players(club: str, *, season: str | None = None) -> dict[str, Any]:
+    """One row per player for club league games (optional season)."""
+    club = (club or "").strip()
+    season = (season or "").strip() or None
+    empty = {"club": club, "season": season, "latest_season": None, "players": []}
+    if not club:
+        return empty
     g = game_line
+    player_key = coalesce(nullif(trim(g.player_id), ""), g.player_name)
     with session() as con:
         canonical = resolve_club(con, club)
         if canonical is None:
-            return {"club": club, "players": []}
-        q = (
+            return empty
+        games = (
             Query()
             .from_(g)
             .select(
-                g.player_name.as_("player"),
+                player_key.as_("pk"),
                 g.player_id,
-                count_star().as_("games"),
-                round_(avg_(abs_(g.score)), 2).as_("average"),
-                max_(abs_(g.score)).as_("high_game"),
-                count_distinct(g.season).as_("seasons"),
+                g.player_name,
+                g.season,
+                g.score,
             )
             .where(
                 is_league_fact(g),
                 is_player_game(g),
                 ~is_bye(g.player_name),
                 lower(trim(g.club)) == lower(trim(canonical)),
+                player_key.is_not_null(),
+                trim(player_key) != "",
+                g.score.is_not_null(),
             )
-            .group_by(g.player_name, g.player_id)
-            .order_by(avg_(abs_(g.score)).desc())
         )
         if season:
-            q = q.where(g.season == season)
-        rows = fetch_dicts(con, q)
+            games = games.where(g.season == season)
+        gk = relation("games", "pk", "player_id", "player_name", "season", "score")
+        lifetime = (
+            Query()
+            .from_(gk)
+            .select(
+                gk.pk,
+                any_value(gk.player_name).as_("player_name"),
+                any_value(nullif(trim(gk.player_id), "")).as_("player_id"),
+                round_(avg_(gk.score), 2).as_("average"),
+                count_star().as_("games"),
+                count_distinct(gk.season).as_("membership_seasons"),
+            )
+            .group_by(gk.pk)
+        )
+        lt = relation(
+            "lifetime",
+            "pk",
+            "player_name",
+            "player_id",
+            "average",
+            "games",
+            "membership_seasons",
+        )
+        season_stats = (
+            Query()
+            .from_(gk)
+            .select(
+                gk.pk,
+                gk.season,
+                avg_(gk.score).as_("season_average"),
+                count_star().as_("season_games"),
+            )
+            .group_by(gk.pk, gk.season)
+        )
+        ss = relation("season_stats", "pk", "season", "season_average", "season_games")
+        best_ranked = (
+            Query()
+            .from_(ss)
+            .select(
+                ss.pk,
+                ss.season,
+                ss.season_average,
+                row_number()
+                .over(
+                    partition_by=[ss.pk],
+                    order_by=[ss.season_average.desc(), ss.season_games.desc(), ss.season.desc()],
+                )
+                .as_("rn"),
+            )
+        )
+        br = relation("best_ranked", "pk", "season", "season_average", "rn")
+        best = Query().from_(br).select(br.pk, br.season, br.season_average).where(br.rn == 1)
+        b = relation("best", "pk", "season", "season_average").as_("b")
+        latest = Query().from_(gk).select(max_(gk.season).as_("latest_season"))
+        lat = relation("latest", "latest_season")
+        active = (
+            Query()
+            .from_(gk)
+            .cross_join(lat)
+            .select(gk.pk)
+            .where(gk.season == lat.latest_season)
+            .distinct()
+        )
+        act = relation("active", "pk").as_("a")
+        rows = fetch_dicts(
+            con,
+            Query.with_ctes(
+                games=games,
+                lifetime=lifetime,
+                season_stats=season_stats,
+                best_ranked=best_ranked,
+                best=best,
+                latest=latest,
+                active=active,
+            )
+            .from_(lt)
+            .left_join(b, on=lt.pk == b.pk)
+            .left_join(act, on=lt.pk == act.pk)
+            .cross_join(lat)
+            .select(
+                lt.player_name,
+                lt.player_id,
+                lt.average,
+                lt.games,
+                lt.membership_seasons,
+                b.season.as_("best_season"),
+                round_(b.season_average, 2).as_("best_season_average"),
+                act.pk.is_not_null().as_("club_active"),
+                lat.latest_season,
+            )
+            .order_by(lt.average.desc(), lt.games.desc(), lt.player_name),
+        )
+    latest_season = as_str(rows[0]["latest_season"]) if rows else None
+    players: list[dict[str, Any]] = []
+    for index, row in enumerate(rows, start=1):
+        name = as_str(row.get("player_name")) or as_str(row.get("player")) or ""
+        if not name:
+            continue
+        avg = as_float(row.get("average"))
+        best_avg = as_float(row.get("best_season_average"))
+        players.append(
+            {
+                "rank": index,
+                "player_id": as_str(row.get("player_id")) or "",
+                "player_name": name,
+                "games": as_int(row.get("games")) or 0,
+                "average": avg,
+                "best_season": as_str(row.get("best_season")),
+                "best_season_average": best_avg,
+                "membership_seasons": as_int(row.get("membership_seasons")) or 0,
+                "club_active": bool(row.get("club_active")),
+            }
+        )
     return {
         "club": canonical,
         "season": season,
-        "players": [
-            {
-                "player": as_str(r["player"]),
-                "player_id": as_str(r["player_id"]),
-                "games": as_int(r["games"]),
-                "average": as_float(r["average"]),
-                "high_game": as_int(r["high_game"]),
-                "seasons": as_int(r["seasons"]),
-            }
-            for r in rows
-        ],
+        "latest_season": latest_season,
+        "players": players,
     }
 
 
