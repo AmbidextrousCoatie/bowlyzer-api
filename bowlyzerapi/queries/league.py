@@ -44,6 +44,25 @@ def _latest_week(con, season: str, league: str) -> int | None:
     )
 
 
+def _latest_weeks(con, season: str) -> dict[str, int]:
+    g = game_line
+    rows = fetch_dicts(
+        con,
+        Query()
+        .from_(g)
+        .select(g.event, max_(g.week).as_("week"))
+        .where(g.season == season, g.event.is_not_null(), g.week.is_not_null())
+        .group_by(g.event),
+    )
+    out: dict[str, int] = {}
+    for row in rows:
+        event = as_str(row["event"]) or ""
+        week = as_int(row["week"])
+        if event and week is not None:
+            out[event] = week
+    return out
+
+
 def _weekly_rows(con, season: str, league: str, through_week: int) -> list[dict[str, Any]]:
     g = game_line
     scope = event_scope(g, season, league) & (g.week <= through_week) & g.week.is_not_null()
@@ -283,7 +302,7 @@ def _honor(con, season: str, league: str, week: int) -> dict[str, Any]:
         .from_(g)
         .select(g.player_name.as_("player"), g.player_id, g.team, g.score, g.round_number, g.match_number)
         .where(scope, is_player_game(g), ~is_bye(g.player_name), g.score.is_not_null())
-        .order_by(g.score.desc())
+        .order_by(g.score.desc(), g.player_name, g.team, g.round_number, g.match_number)
         .limit(3),
     )
     team_scores = fetch_dicts(
@@ -292,7 +311,7 @@ def _honor(con, season: str, league: str, week: int) -> dict[str, Any]:
         .from_(g)
         .select(g.team, g.score)
         .where(scope, is_team_total(g), g.score.is_not_null())
-        .order_by(g.score.desc())
+        .order_by(g.score.desc(), g.team)
         .limit(3),
     )
     individual_averages = fetch_dicts(
@@ -307,7 +326,7 @@ def _honor(con, season: str, league: str, week: int) -> dict[str, Any]:
         )
         .where(scope, is_player_game(g), ~is_bye(g.player_name))
         .group_by(g.player_name, g.player_id, g.team)
-        .order_by(avg_(abs_(g.score)).desc())
+        .order_by(avg_(abs_(g.score)).desc(), g.player_name, g.team)
         .limit(3),
     )
     team_averages = fetch_dicts(
@@ -317,7 +336,7 @@ def _honor(con, season: str, league: str, week: int) -> dict[str, Any]:
         .select(g.team, round_(avg_(abs_(g.score)), 2).as_("average"))
         .where(scope, is_player_game(g), ~is_bye(g.player_name), g.team.is_not_null())
         .group_by(g.team)
-        .order_by(avg_(abs_(g.score)).desc())
+        .order_by(avg_(abs_(g.score)).desc(), g.team)
         .limit(3),
     )
     scores = [
@@ -350,6 +369,138 @@ def _honor(con, season: str, league: str, week: int) -> dict[str, Any]:
             {"team": as_str(r["team"]), "average": as_float(r["average"])} for r in team_averages
         ],
     }
+
+
+def _empty_honor() -> dict[str, Any]:
+    return {
+        "individual_scores": [],
+        "team_scores": [],
+        "individual_averages": [],
+        "team_averages": [],
+    }
+
+
+def _honor_snapshots(con, season: str, weeks: dict[str, int]) -> dict[str, dict[str, Any]]:
+    """Honor scores for each league's latest week — same lists as `_honor`."""
+    out = {event: _empty_honor() for event in weeks}
+    if not weeks:
+        return out
+    g = game_line
+    scope = (g.season == season) & or_(
+        *[(g.event == event) & (g.week == week) for event, week in weeks.items()]
+    )
+    individual_scores = fetch_dicts(
+        con,
+        Query()
+        .from_(g)
+        .select(
+            g.event,
+            g.player_name.as_("player"),
+            g.player_id,
+            g.team,
+            g.score,
+            g.round_number,
+            g.match_number,
+        )
+        .where(scope, is_player_game(g), ~is_bye(g.player_name), g.score.is_not_null()),
+    )
+    team_scores = fetch_dicts(
+        con,
+        Query()
+        .from_(g)
+        .select(g.event, g.team, g.score)
+        .where(scope, is_team_total(g), g.score.is_not_null()),
+    )
+    individual_averages = fetch_dicts(
+        con,
+        Query()
+        .from_(g)
+        .select(
+            g.event,
+            g.player_name.as_("player"),
+            g.player_id,
+            g.team,
+            round_(avg_(abs_(g.score)), 2).as_("average"),
+        )
+        .where(scope, is_player_game(g), ~is_bye(g.player_name))
+        .group_by(g.event, g.player_name, g.player_id, g.team),
+    )
+    team_averages = fetch_dicts(
+        con,
+        Query()
+        .from_(g)
+        .select(g.event, g.team, round_(avg_(abs_(g.score)), 2).as_("average"))
+        .where(scope, is_player_game(g), ~is_bye(g.player_name), g.team.is_not_null())
+        .group_by(g.event, g.team),
+    )
+
+    scores_by: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in individual_scores:
+        event = as_str(row["event"]) or ""
+        scores_by[event].append(
+            {
+                "player": as_str(row["player"]),
+                "player_id": as_str(row.get("player_id")),
+                "team": as_str(row["team"]),
+                "score": as_int(row["score"]),
+                "round": as_int(row.get("round_number")),
+                "game": as_int(row.get("match_number")),
+            }
+        )
+    team_scores_by: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in team_scores:
+        event = as_str(row["event"]) or ""
+        team_scores_by[event].append({"team": as_str(row["team"]), "score": as_int(row["score"])})
+    averages_by: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in individual_averages:
+        event = as_str(row["event"]) or ""
+        averages_by[event].append(
+            {
+                "player": as_str(row["player"]),
+                "player_id": as_str(row.get("player_id")),
+                "team": as_str(row["team"]),
+                "average": as_float(row["average"]),
+            }
+        )
+    team_avgs_by: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in team_averages:
+        event = as_str(row["event"]) or ""
+        team_avgs_by[event].append({"team": as_str(row["team"]), "average": as_float(row["average"])})
+
+    all_scores: list[dict[str, Any]] = []
+    all_averages: list[dict[str, Any]] = []
+    for event in weeks:
+        scores = sorted(
+            scores_by.get(event, []),
+            key=lambda r: (
+                -(r["score"] or 0),
+                r.get("player") or "",
+                r.get("team") or "",
+                r.get("round") or 0,
+                r.get("game") or 0,
+            ),
+        )[:3]
+        averages = sorted(
+            averages_by.get(event, []),
+            key=lambda r: (-(r["average"] or 0), r.get("player") or "", r.get("team") or ""),
+        )[:3]
+        out[event] = {
+            "individual_scores": scores,
+            "team_scores": sorted(
+                team_scores_by.get(event, []),
+                key=lambda r: (-(r["score"] or 0), r.get("team") or ""),
+            )[:3],
+            "individual_averages": averages,
+            "team_averages": sorted(
+                team_avgs_by.get(event, []),
+                key=lambda r: (-(r["average"] or 0), r.get("team") or ""),
+            )[:3],
+        }
+        all_scores.extend(scores)
+        all_averages.extend(averages)
+    apply_canonical_player_names(con, all_scores, name_key="player")
+    apply_canonical_player_names(con, all_averages, name_key="player")
+    return out
 
 
 def _individual_averages(con, season: str, league: str, *, week: int | None = None, team: str | None = None):
@@ -431,12 +582,10 @@ def league_standings(season: str, league: str, *, week: int | None = None, view:
 
 def season_standings(season: str) -> dict[str, Any]:
     g = game_line
-    from bowlyzerapi.engine import fetch_rows
-
     with session() as con:
         leagues = [
-            str(e)
-            for (e,) in fetch_rows(
+            str(row["event"])
+            for row in fetch_dicts(
                 con,
                 Query()
                 .from_(g)
@@ -446,13 +595,20 @@ def season_standings(season: str) -> dict[str, Any]:
                 .order_by(g.event),
             )
         ]
+        snaps = league_table_snapshots(con, [(season, name) for name in leagues])
+        weeks = _latest_weeks(con, season)
+        honors = _honor_snapshots(con, season, weeks)
     return {
         "season": season,
         "leagues": [
             {
                 "league": name,
                 "league_long": name,
-                **{k: v for k, v in league_standings(season, name).items() if k not in {"season", "league"}},
+                "week": weeks.get(name),
+                "standings": (snaps.get((season, name)) or {}).get("standings") or [],
+                "honor_scores": honors.get(name) or _empty_honor(),
+                "series": {"categories": [], "points": {}, "positions": {}, "averages": {}},
+                "players": [],
             }
             for name in leagues
         ],

@@ -14,7 +14,7 @@ to import; ~50k games/year after that.
 | Call | Where | What happens | Why it hurts | Direction |
 |------|--------|----------------|--------------|-----------|
 | `GET /api/v1/teams/{team}` | `queries/team.py` `team_document` | **Fixed.** History position + league comparison use `league_table_snapshots`: two grouped queries for all `(season, event)` pairs, same ranking as `league_standings` through latest week, no honor/series/players. | Was ~15 seasons → ~30 full league documents (~3.6s for EPA München 3). | Done. |
-| `GET /api/v1/seasons/{season}/standings` | `queries/league.py` `season_standings` | Lists every league in the season, then `league_standings(season, name)` per league. | Liga season dashboard: N fat standings payloads (honor, series, players) when the UI needs a thin table per league. | Batch weekly rows for all leagues in one query, or a `view=` that omits honor/series. |
+| `GET /api/v1/seasons/{season}/standings` | `queries/league.py` `season_standings` | **Fixed.** One session: `league_table_snapshots` + latest week per event + batched honor (top-3 per league for that week). Series/players omitted (SPA season dashboard only uses standings + honor + week). | Was 24 full `league_standings` (~2.0s for 25/26). | Done. |
 | `GET /api/v1/tournaments/podiums` | `queries/tournament.py` `tournament_podiums` | For each season×group in the listing, `overall_standings` loads **all games**, builds the KO bracket, ranks, then keeps top N. | `/turnier` with only a tournament (all seasons) or empty filters walks many events. | SQL pinfall ranks for events **without** KO; KO only for configured/KO-named events. Optional: persist placements at publish. |
 | `GET /api/v1/players/{id}/tournaments` | `queries/player.py` `player_tournaments` | Same `overall_standings` **per event** the player entered. | A long career → dozens of full event rebuilds for a place column. | Same as podiums: shared standings helper with cache-per-request, or stored KO place. |
 
@@ -47,6 +47,7 @@ In-memory loops after **one** fetch (league week series, KO pairing, canonical n
 - Club history (~60 ms vs ~27 s Flask pandas) — `docs/bench-get-section.md`
 - Tournament SQL kernel (leaderboard + field-progress, no KO) ~80–100 ms
 - Team document (history + league comparison snapshots, no honor/series) — EPA München 3, 15 seasons: 3.6s → 143 ms (~25×)
+- Season standings (all league tables + honor, no series/players) — 25/26, 24 leagues: 2.0s → 380 ms (~5×)
 - Home counts, matchday, compare, records: one or few queries per request
 - KO for a **single** event: Python over a few thousand rows is cheap; cost is repeating it per event
 

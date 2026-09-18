@@ -11,7 +11,9 @@ from bowlyzerapi.engine import (
     fetch_dicts,
     fetch_scalar,
     game_line,
+    relation,
     tournament_line,
+    trim,
 )
 from bowlyzerapi.queries.filters import is_bye, is_league_fact, is_player_game
 from bowlyzerapi.queries.util import as_int, as_str
@@ -29,13 +31,16 @@ def home(*, limit: int = 8) -> dict[str, Any]:
                 Query()
                 .from_(g)
                 .select(count_star())
-                .where(is_league_fact(g), is_player_game(g), g.score.is_not_null()),
+                .where(is_league_fact(g), is_player_game(g), g.score.is_not_null(), ~is_bye(g.player_name)),
             )
         ) or 0
         tournament_games = as_int(
             fetch_scalar(
                 con,
-                Query().from_(t).select(count_star()).where(t.score.is_not_null()),
+                Query()
+                .from_(t)
+                .select(count_star())
+                .where(t.score.is_not_null(), ~is_bye(t.player_name)),
             )
         ) or 0
         years = as_int(
@@ -61,18 +66,31 @@ def home(*, limit: int = 8) -> dict[str, Any]:
         tournaments = as_int(
             fetch_scalar(con, Query().from_(tournament_pairs).select(count_star()))
         ) or 0
-        players = as_int(
-            fetch_scalar(
-                con,
-                Query()
-                .from_(g)
-                .select(count_distinct(g.player_id))
-                .where(
-                    is_player_game(g),
-                    g.player_id.is_not_null(),
-                    ~is_bye(g.player_name),
-                ),
+        player_ids = (
+            Query()
+            .from_(g)
+            .select(g.player_id)
+            .where(
+                is_player_game(g),
+                g.player_id.is_not_null(),
+                trim(g.player_id) != "",
+                ~is_bye(g.player_name),
             )
+            .union_all(
+                Query()
+                .from_(t)
+                .select(t.player_id)
+                .where(
+                    t.player_id.is_not_null(),
+                    trim(t.player_id) != "",
+                    ~is_bye(t.player_name),
+                )
+            )
+            .as_("pids")
+        )
+        pids = relation("pids", "player_id")
+        players = as_int(
+            fetch_scalar(con, Query().from_(player_ids).select(count_distinct(pids.player_id)))
         ) or 0
         latest = fetch_dicts(
             con,
