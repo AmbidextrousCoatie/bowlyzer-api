@@ -283,12 +283,31 @@ def h_honor(_p, qs):
     return 200, club_honor_300(qs.get("club") or None)
 
 
+def _team_threshold(qs: dict[str, str]) -> int:
+    return _int(qs, "threshold") or _int(qs, "clutch_threshold") or 10
+
+
 def h_teams(_p, _q):
     return 200, team_list()
 
 
+def h_team_query(_p, qs):
+    team = (qs.get("team") or qs.get("team_name") or "").strip()
+    if not team:
+        return _missing("Query param team is required.")
+    return 200, team_document(
+        team,
+        season=qs.get("season") or None,
+        threshold=_team_threshold(qs),
+    )
+
+
 def h_team(p, qs):
-    return 200, team_document(p["team"], season=qs.get("season") or None)
+    return 200, team_document(
+        p["team"],
+        season=qs.get("season") or None,
+        threshold=_team_threshold(qs),
+    )
 
 
 def _player_ident(qs: dict[str, str]) -> str:
@@ -435,6 +454,7 @@ ROUTES: list[tuple[list[str], Handler]] = [
     (["api", "v1", "clubs", "{club}", "honor", "300"], h_club_honor),
     (["api", "v1", "clubs", "{club}"], h_club),
     (["api", "v1", "clubs"], h_clubs),
+    (["api", "v1", "teams", "document"], h_team_query),
     (["api", "v1", "teams", "{team}"], h_team),
     (["api", "v1", "teams"], h_teams),
     (["api", "v1", "players", "stats"], h_player_stats),

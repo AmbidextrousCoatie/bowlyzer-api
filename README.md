@@ -46,7 +46,7 @@ uv run python -m bowlyzerapi.server
 Then `GET http://127.0.0.1:8080/api/v1/health`. Expect `game_line` on the order
 of 700k+ rows and `tournament_line` ~64k.
 
-Query kernels (no KO brackets yet):
+Query kernels:
 
 ```text
 GET /api/v1/leagues/25%2F26/{league}/standings

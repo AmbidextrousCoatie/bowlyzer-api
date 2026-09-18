@@ -75,7 +75,12 @@ def _matches(con, team: str, season: str | None) -> list[dict[str, Any]]:
     return fetch_dicts(con, q)
 
 
-def team_document(team: str, *, season: str | None = None) -> dict[str, Any]:
+def team_document(
+    team: str,
+    *,
+    season: str | None = None,
+    threshold: int = 10,
+) -> dict[str, Any]:
     g = game_line
     with session() as con:
         seasons = [
@@ -151,12 +156,14 @@ def team_document(team: str, *, season: str | None = None) -> dict[str, Any]:
             "final_position": block["final_position"],
         }
 
-    clutch = _clutch(matches)
+    clutch_threshold = max(1, min(int(threshold), 100))
+    clutch = _clutch(matches, threshold=clutch_threshold)
     consistency = _consistency([as_float(m["score"]) or 0 for m in matches])
     special = _special(matches)
     return {
         "team": team,
         "season": season,
+        "clutch_threshold": clutch_threshold,
         "seasons": seasons,
         "history": history,
         "leagues": leagues,

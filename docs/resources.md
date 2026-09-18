@@ -37,42 +37,25 @@ Contract: [`openapi/openapi.yaml`](../openapi/openapi.yaml). Spike results:
 | `GET /api/v1/clubs/{club}/honor/300` | yes | Perfect games |
 | `GET /api/v1/honor/300` | yes | Optional `?club=` |
 | `GET /api/v1/teams` | yes | Team list |
-| `GET /api/v1/teams/{team}` | yes | Kernel yes; SPA `/club` (Mannschaft) still Flask |
+| `GET /api/v1/teams/{team}` | yes | SPA `/club` on v1 (`?season=` `?threshold=`; query alias `/teams/document`) |
 | `GET /api/v1/players` | yes | `?q=&club=` |
 | `GET /api/v1/players/{id}` | yes | Lifetime + competitions + highlights |
 | `GET /api/v1/players/{id}/tournaments` | yes | Positions from kernel leaderboard (no KO); `?season=&event=` |
 | `GET /api/v1/tournaments` | yes | Catalog; `?season=&club=&event=` returns `seasons` / `events` (group names) |
 | `GET /api/v1/tournaments/podiums` | yes | Top-N from kernel ranks (no KO); `?event=` is group name |
-| `GET /api/v1/tournaments/{season}/{event}` | yes | Leaderboard, field-progress overlays, rounds, cards, round_results, best_efforts, format, players. `?round=&n=`. **No KO.** |
-| `GET /api/v1/tournaments/{season}/{event}/players/{player}` | yes | Player section from kernel (no KO) |
+| `GET /api/v1/tournaments/{season}/{event}` | yes | Leaderboard, field-progress, rounds, cards, round_results, best_efforts, format, players, **KO bracket**. `?round=&n=` |
+| `GET /api/v1/tournaments/{season}/{event}/players/{player}` | yes | Player section from kernel + KO path / highlights |
 | `GET /api/v1/tournaments/players` | yes | Player catalog; `?season=&event=&round=` |
 | `GET /api/v1/tournaments/player` | yes | Query alias for player section (`season`, `event`, `player`) |
 
-JSON uses named objects, not Flask `TableData`. KO bracket is `null` until ported.
+JSON uses named objects, not Flask `TableData`. KO brackets live on the
+tournament document (`ko_bracket`, placements, finale series). Config JSON
+stays in the publish dir (`tournament_ko_config.json`), not DuckDB.
 
-## SPA still on Flask (2026-09-16)
+## SPA still on Flask (2026-09-17)
 
-Club / player / league / tournament / home **stats** hooks are on `/api/v1`. What
-remains on Flask is Mannschaft (`/club` team page), i18n, session, diagnosis, and
-tournament **KO** (v1 returns `ko_bracket: null`).
-
-### Stats pages — kernel exists, SPA still Flask
-
-| Flask | Caller | v1 already |
-|-------|--------|------------|
-| `GET /team/get_teams` | `useTeams` | `GET /api/v1/teams` / `GET /api/v1/meta` (`teams`) |
-| `GET /team/get_available_seasons` | `useTeamSeasons` | team document `seasons` |
-| `GET /team/get_team_history` | `useTeamHistory` | `GET /api/v1/teams/{team}` |
-| `GET /team/get_league_comparison` | `useLeagueComparison` | team document `leagues` |
-| `GET /team/get_clutch_analysis` | `useClutchAnalysis` | `clutch` |
-| `GET /team/get_consistency_metrics` | `useConsistencyMetrics` | `consistency` |
-| `GET /team/get_special_matches` | `useSpecialMatches` | `special_matches` |
-
-### Tournament KO — not a separate RPC
-
-SPA `/turnier` is on v1. Bracket / placements / finale integration still live
-only inside Flask `GET /tournament/get_section` and `GET /tournament/get_player_section`
-(`ko_bracket`, `is_ko_finale_round`, KO-adjusted ranks). No dedicated KO URL.
+Club / player / league / tournament / home / team **stats** hooks are on `/api/v1`.
+What remains on Flask is i18n, session, and diagnosis / pipeline (ops).
 
 ### i18n (deferred)
 
@@ -106,7 +89,7 @@ Unused by SPA, still Flask: `POST /switch-database`, `GET /debug-session`,
 
 Query aliases (`/leagues/standings?season=&league=`, `/leagues/timetable`,
 `/leagues/compare`, `/leagues/matchdays/{week}`, `/leagues/records?league=`,
-`/tournaments/section?season=&event=&round=`, `/tournaments/player?season=&event=&player=`, `/clubs/history?club=`) skip `%2F` in
+`/tournaments/section?season=&event=&round=`, `/tournaments/player?season=&event=&player=`, `/clubs/history?club=`, `/teams/document?team=`) skip `%2F` in
 path seasons. Season-first identity is `/leagues/{season}/{league}/…`, parallel
 to `/tournaments/{season}/{event}`. Cross-season records live at
 `/leagues/{league}/records`.
@@ -159,9 +142,8 @@ today.
 | `GET /tournament/get_tournament_podiums` | `useTournamentPodiums` | **keep** | `GET /api/v1/tournaments/podiums?season=&club=` (later) |
 | `GET /tournament/get_player_tournament_results` | `usePlayerTournamentResults` | **keep** | player document or `…/players/{id}/tournaments` |
 
-SPA tournament hooks are on v1. Still Flask: **KO only** (`ko_bracket` on
-`get_section` / `get_player_section`). Config JSON stays in the publish dir,
-not DuckDB.
+SPA tournament hooks are on v1, including KO (`ko_bracket` on the tournament
+document / player section). Config JSON stays in the publish dir, not DuckDB.
 
 ---
 
@@ -240,13 +222,17 @@ with `metric=`:
 
 ## Team — `frontend/src/hooks/useTeam.ts`
 
+SPA cutover 2026-09-16. List is `GET /api/v1/teams`. Seasons / history / leagues share
+the unfiltered team document; clutch / consistency / special matches share
+`?season=` (and clutch `?threshold=` when not 10). Query alias `/api/v1/teams/document?team=`.
+
 | Flask | Caller | Decision | v1 |
 |-------|--------|----------|-----|
 | `GET /team/get_teams` | `useTeams` | **merge** | `GET /api/v1/meta` (`teams`) or `GET /api/v1/teams` |
 | `GET /team/get_available_seasons` | `useTeamSeasons` | **merge** | team document `seasons` |
 | `GET /team/get_team_history` | `useTeamHistory` | **keep** | `GET /api/v1/teams/{team}` |
 | `GET /team/get_league_comparison` | `useLeagueComparison` | **merge** | team document `leagues` |
-| `GET /team/get_clutch_analysis` | `useClutchAnalysis` | **merge** | team document `clutch` (or `?include=`) |
+| `GET /team/get_clutch_analysis` | `useClutchAnalysis` | **merge** | team document `clutch` (`?threshold=`) |
 | `GET /team/get_consistency_metrics` | `useConsistencyMetrics` | **merge** | `consistency` |
 | `GET /team/get_special_matches` | `useSpecialMatches` | **merge** | `special_matches` |
 

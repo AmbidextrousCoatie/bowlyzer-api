@@ -31,6 +31,16 @@ from bowlyzerapi.engine import (
 )
 from bowlyzerapi.queries.filters import event_scope, is_bye, pins
 from bowlyzerapi.queries.identity import apply_canonical_player_names, collapse_player_catalog
+from bowlyzerapi.queries.tournament_ko import (
+    apply_ko_ranks,
+    build_ko_bracket,
+    format_ko_fields,
+    is_ko_round_name,
+    ko_finale_round_number,
+    placement_for,
+    player_in_bracket,
+    with_highlights,
+)
 from bowlyzerapi.queries.tournament_names import normalize_tournament_group_name
 from bowlyzerapi.queries.util import as_float, as_int, as_str
 from bowlyzerapi.warehouse import connect, session
@@ -440,6 +450,8 @@ def tournament_document(
                     "players": [],
                     "format": _empty_format(),
                     "ko_bracket": None,
+                    "is_ko_finale_round": False,
+                    "ko_finale_round_number": None,
                     "round": round,
                 }
             )
@@ -459,32 +471,40 @@ def tournament_document(
                 t.handicap,
                 t.apriori_average,
                 t.handicap_reference,
+                t.stage_rank,
             )
             .where(_event_filter(t, season, events), ~is_bye(t.player_name))
             .order_by(t.round_number, t.game_number, t.player_name),
         )
         orig_names = [(as_str(row.get("player_id")), as_str(row.get("player_name"))) for row in games]
         apply_canonical_player_names(con, games)
-    games = [row for row in games if not _is_walkover(row)]
-    kernel["field_progress"] = _remap_field_progress(kernel.get("field_progress") or {}, orig_names, games)
-    rounds = _rounds_from_games(games)
+    ko_bracket = build_ko_bracket(season, event, games)
+    ko_rn = ko_finale_round_number(games)
+    scored = [row for row in games if not _is_walkover(row)]
+    kernel["field_progress"] = _remap_field_progress(kernel.get("field_progress") or {}, orig_names, scored)
+    rounds = _rounds_from_games(scored)
     use_net = bool(kernel.get("use_net"))
     top_n = max(1, min(int(n or 5), 20))
-    leaderboard = _leaderboard_from_games(games, use_net=use_net, through_round=round)
-    round_results = _round_results_from_games(games, use_net=use_net, round_number=round)
-    cards = _summary_cards(event, games, leaderboard, rounds, round_number=round, use_net=use_net)
+    leaderboard = _leaderboard_from_games(scored, use_net=use_net, through_round=round)
+    if round is None and ko_bracket.get("matches"):
+        leaderboard = apply_ko_ranks(leaderboard, ko_bracket)
+    round_results = _round_results_from_games(scored, use_net=use_net, round_number=round)
+    cards = _summary_cards(event, scored, leaderboard, rounds, round_number=round, use_net=use_net)
+    is_ko_finale = (
+        round is not None and ko_rn is not None and int(round) == int(ko_rn) and bool(ko_bracket.get("matches"))
+    )
     kernel.update(
         {
             "leaderboard": leaderboard,
             "rounds": rounds,
             "cards": cards,
             "round_results": round_results,
-            "best_efforts": _best_efforts(games, round_number=round, n=top_n),
-            "players": _players_from_games(games, round_number=round),
-            "format": _format_info(games, rounds, use_net=use_net),
-            "ko_bracket": None,
-            "is_ko_finale_round": False,
-            "ko_finale_round_number": None,
+            "best_efforts": _best_efforts(scored, round_number=round, n=top_n),
+            "players": _players_from_games(scored, round_number=round),
+            "format": _format_info(scored, rounds, use_net=use_net, season=season, event=event),
+            "ko_bracket": ko_bracket if ko_bracket.get("matches") else None,
+            "is_ko_finale_round": is_ko_finale,
+            "ko_finale_round_number": ko_rn,
             "round": round,
         }
     )
@@ -566,12 +586,27 @@ def tournament_player_section(season: str, event: str, player: str) -> dict[str,
         except ValueError:
             best_game = None
     want_pairs = _want_pairs(event)
+    fmt = doc.get("format") or {}
+    cfg_cards = (fmt.get("config") or {}).get("player_cards") if isinstance(fmt.get("config"), dict) else None
+    layout_src = cfg_cards if isinstance(cfg_cards, list) and cfg_cards else _PLAYER_CARD_ORDER
     layout = [
         cid
-        for cid in _PLAYER_CARD_ORDER
+        for cid in layout_src
         if not (cid == "best_highest_pair" and not want_pairs)
         and not (cid == "handicap_profile" and not use_net)
     ]
+    ko_raw = doc.get("ko_bracket") if isinstance(doc.get("ko_bracket"), dict) else None
+    ko_place = placement_for(ko_raw, display)
+    if ko_place is not None and series and not field.get("progress_chart_capped"):
+        series = series[:]
+        series[-1] = ko_place
+        progress["position_series"] = series
+        if best_position is None or ko_place < best_position:
+            best_position = min(series)
+    if ko_raw and player_in_bracket(ko_raw, display):
+        ko_for_player = with_highlights(ko_raw, display)
+    else:
+        ko_for_player = None
     return {
         "season": season,
         "event": event,
@@ -580,7 +615,7 @@ def tournament_player_section(season: str, event: str, player: str) -> dict[str,
         "player_card_layout": layout or list(_PLAYER_CARD_ORDER[:4]) + ["best_highest_block"],
         "summary": {
             "average": round(float(played_avgs[-1]), 2) if played_avgs else (lb or {}).get("avg_net") or (lb or {}).get("avg_scratch"),
-            "final_position": (lb or {}).get("rank"),
+            "final_position": ko_place if ko_place is not None else (lb or {}).get("rank"),
             "best_position": best_position,
             "best_position_game": best_game,
         },
@@ -594,7 +629,7 @@ def tournament_player_section(season: str, event: str, player: str) -> dict[str,
             for k, v in field.items()
             if k not in {"player_rank_series", "game_slots", "round_length_map"}
         },
-        "ko_bracket": None,
+        "ko_bracket": ko_for_player,
         "best_efforts": _player_best_efforts(player_games, use_net=use_net),
     }
 
@@ -781,7 +816,14 @@ def _rounds_from_games(games: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
         name = as_str(row.get("round_name")) or f"Round {rn}"
         by_rn.setdefault(rn, name)
-    return [{"round_number": rn, "round_name": by_rn[rn]} for rn in sorted(by_rn)]
+    return [
+        {
+            "round_number": rn,
+            "round_name": by_rn[rn],
+            "is_ko_finale_cluster": is_ko_round_name(by_rn[rn]),
+        }
+        for rn in sorted(by_rn)
+    ]
 
 
 def _min_rank(values: list[float]) -> list[int]:
@@ -1164,11 +1206,18 @@ def _summary_cards(
     return cards
 
 
-def _format_info(games: list[dict[str, Any]], rounds: list[dict[str, Any]], *, use_net: bool) -> dict[str, Any]:
+def _format_info(
+    games: list[dict[str, Any]],
+    rounds: list[dict[str, Any]],
+    *,
+    use_net: bool,
+    season: str = "",
+    event: str = "",
+) -> dict[str, Any]:
     hcp = [ _num(row.get("handicap")) for row in games if row.get("handicap") is not None ]
     apriori = [ _num(row.get("apriori_average")) for row in games if row.get("apriori_average") is not None ]
     href = [ _num(row.get("handicap_reference")) for row in games if row.get("handicap_reference") is not None ]
-    return {
+    payload = {
         "round_count": len(rounds),
         "rounds": [{**item} for item in rounds],
         "handicap": {
@@ -1188,6 +1237,9 @@ def _format_info(games: list[dict[str, Any]], rounds: list[dict[str, Any]], *, u
         "qualifying_stages": [],
         "config": {},
     }
+    if season and event:
+        payload.update(format_ko_fields(season, event, games))
+    return payload
 
 
 def _players_from_games(games: list[dict[str, Any]], *, round_number: int | None) -> list[dict[str, Any]]:

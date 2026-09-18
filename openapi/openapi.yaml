@@ -15,7 +15,9 @@ info:
 
     Successful responses set `X-Data-Revision` (publish run id / import time).
     The SPA should treat a changed revision as a cache bust for React Query.
-    KO brackets are omitted (`ko_bracket: null`) until ported.
+    KO brackets are included on the tournament document when the event has
+    KO rounds (`ko_bracket`, placements, finale series). Config JSON is read
+    from the publish dir, not DuckDB.
 servers:
   - url: http://127.0.0.1:8080
     description: Local placeholder
@@ -524,6 +526,26 @@ paths:
             application/json:
               schema: { type: object }
 
+  /api/v1/teams/document:
+    get:
+      tags: [teams]
+      operationId: getTeamQuery
+      summary: Team document (query alias; avoids encoding team names in the path)
+      parameters:
+        - { name: team, in: query, required: true, schema: { type: string } }
+        - { name: season, in: query, schema: { type: string } }
+        - { name: threshold, in: query, schema: { type: integer, default: 10 } }
+        - { name: clutch_threshold, in: query, schema: { type: integer } }
+      responses:
+        "200":
+          description: Team document
+          headers:
+            X-Data-Revision:
+              $ref: "#/components/headers/XDataRevision"
+          content:
+            application/json:
+              schema: { type: object }
+
   /api/v1/teams/{team}:
     get:
       tags: [teams]
@@ -532,6 +554,8 @@ paths:
       parameters:
         - { name: team, in: path, required: true, schema: { type: string } }
         - { name: season, in: query, schema: { type: string } }
+        - { name: threshold, in: query, schema: { type: integer, default: 10 } }
+        - { name: clutch_threshold, in: query, schema: { type: integer } }
       responses:
         "200":
           description: Team document
@@ -717,7 +741,8 @@ paths:
       description: |
         Leaderboard, field-progress ranks, rounds, cards, round_results, best_efforts, format.
         Query `round` scopes leaderboard / round_results / best_efforts to one stage.
-        `ko_bracket` is null until ported.
+        `ko_bracket` is present when the event has KO rounds (tree or
+        seeded elim/stepladder). Overall leaderboard ranks use KO placements.
       parameters:
         - $ref: "#/components/parameters/SeasonPath"
         - $ref: "#/components/parameters/EventPath"
@@ -750,7 +775,7 @@ paths:
         - { name: player, in: path, required: true, schema: { type: string } }
       responses:
         "200":
-          description: Player tournament section (no KO)
+          description: Player tournament section (KO highlights when in the bracket)
           headers:
             X-Data-Revision:
               $ref: "#/components/headers/XDataRevision"
@@ -765,13 +790,11 @@ paths:
       description: |
         Target v1 shape of Flask `GET /tournament/get_section`.
 
-        **Implemented now (kernel):** overall leaderboard + field-progress
-        rank series. No KO bracket, no summary cards, no round-results table,
-        no cut-line overlays.
+        **Implemented:** overall leaderboard + field-progress + KO bracket
+        (tree or seeded elim/stepladder), summary cards, round-results,
+        best_efforts, format/cut metadata.
 
-        **Still Flask / later:** `ko_bracket`, `cards`, `round_results`,
-        `best_efforts`, format/cut metadata. Those keys are omitted until
-        ported; the URL does not change.
+        `ko_bracket` is null when the event has no KO rounds.
       parameters:
         - $ref: "#/components/parameters/SeasonPath"
         - $ref: "#/components/parameters/EventPath"
@@ -1098,7 +1121,7 @@ components:
         format:
           type: object
         ko_bracket:
-          description: Not implemented — stays in-process / Flask until ported
+          description: Tree or seeded-elim/stepladder payload; null when the event has no KO rounds
           nullable: true
 
     ClubHistoryItem:
