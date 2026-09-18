@@ -1,0 +1,1410 @@
+{
+  "podiums": [
+    {
+      "season": "25/26",
+      "tournament": "Bayerische Meisterschaft Einzel Damen",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Piros, Laura",
+          "club": "",
+          "average": 196.2
+        },
+        {
+          "rank": 2,
+          "player": "Völlmerk, Julia",
+          "club": "",
+          "average": 181.8
+        },
+        {
+          "rank": 3,
+          "player": "Körber, Anika",
+          "club": "",
+          "average": 201.5
+        }
+      ]
+    },
+    {
+      "season": "25/26",
+      "tournament": "Bayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Konieczny, Bodo",
+          "club": "",
+          "average": 238.0
+        },
+        {
+          "rank": 2,
+          "player": "Wiemken, Moritz",
+          "club": "BK München",
+          "average": 219.4
+        },
+        {
+          "rank": 3,
+          "player": "Eisenmann, Michael",
+          "club": "",
+          "average": 214.0
+        }
+      ]
+    },
+    {
+      "season": "25/26",
+      "tournament": "Clubmeisterschaft Donaubowler",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Feller, Christian",
+          "club": "Donaubowler Regensburg",
+          "average": 212.8
+        },
+        {
+          "rank": 2,
+          "player": "Schneider, Tobias",
+          "club": "Donaubowler Regensburg",
+          "average": 210.3
+        },
+        {
+          "rank": 3,
+          "player": "Hartfeil, Volkmar",
+          "club": "Donaubowler Regensburg",
+          "average": 211.7
+        }
+      ]
+    },
+    {
+      "season": "25/26",
+      "tournament": "Nordbayrische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Birkner, Steffen",
+          "club": "Kings Club Bayreuth Land",
+          "average": 226.7
+        },
+        {
+          "rank": 2,
+          "player": "Weiske, Niklas",
+          "club": "Mainauenbowler Bayreuth Land",
+          "average": 216.6
+        },
+        {
+          "rank": 3,
+          "player": "Hernitschek, Andreas",
+          "club": "",
+          "average": 212.4
+        }
+      ]
+    },
+    {
+      "season": "25/26",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Koller, Alexander",
+          "club": "",
+          "average": 227.0
+        },
+        {
+          "rank": 2,
+          "player": "Börding, Tobias",
+          "club": "",
+          "average": 215.1
+        },
+        {
+          "rank": 3,
+          "player": "Eisenmann, Michael",
+          "club": "",
+          "average": 213.3
+        }
+      ]
+    },
+    {
+      "season": "18/19",
+      "tournament": "Bayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Börding, Tobias",
+          "club": "BK München",
+          "average": 223.2
+        },
+        {
+          "rank": 2,
+          "player": "Eisenmann, Michael",
+          "club": "BK München",
+          "average": 220.0
+        },
+        {
+          "rank": 3,
+          "player": "Wölki, Robert",
+          "club": "Ratisbona Regensburg",
+          "average": 217.7
+        }
+      ]
+    },
+    {
+      "season": "18/19",
+      "tournament": "Bayerische Meisterschaft Einzel Damen",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Laub, Sabrina",
+          "club": "REG - Lucky Striker Regensburg",
+          "average": 213.3
+        },
+        {
+          "rank": 2,
+          "player": "Wagner, Janina",
+          "club": "REG - Lucky Striker Regensburg",
+          "average": 201.3
+        },
+        {
+          "rank": 3,
+          "player": "Lindner, Eva",
+          "club": "BK München",
+          "average": 194.1
+        }
+      ]
+    },
+    {
+      "season": "18/19",
+      "tournament": "Nordbayrische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Hofbauer, Timo",
+          "club": "SG Rottendorf",
+          "average": 213.0
+        },
+        {
+          "rank": 2,
+          "player": "Völlmerk, Oliver",
+          "club": "Raubritter 78 Hallstadt",
+          "average": 210.9
+        },
+        {
+          "rank": 3,
+          "player": "Koller, Alexander",
+          "club": "Ratisbona Regensburg",
+          "average": 208.6
+        }
+      ]
+    },
+    {
+      "season": "18/19",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Börding, Tobias",
+          "club": "BK München",
+          "average": 236.9
+        },
+        {
+          "rank": 2,
+          "player": "Pirzer, Robert",
+          "club": "Team ProfiShop München",
+          "average": 236.7
+        },
+        {
+          "rank": 3,
+          "player": "Kloos, Fabian",
+          "club": "BK München",
+          "average": 232.6
+        }
+      ]
+    },
+    {
+      "season": "17/18",
+      "tournament": "Bayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Rechenberg, Christian",
+          "club": "Münchner Kegler-Verein e.V.",
+          "average": 221.7
+        },
+        {
+          "rank": 2,
+          "player": "Baszler, Patrick",
+          "club": "Ratisbona Regensburg",
+          "average": 218.3
+        },
+        {
+          "rank": 3,
+          "player": "Hübner, Patrick",
+          "club": "Triple X Stein",
+          "average": 217.8
+        }
+      ]
+    },
+    {
+      "season": "17/18",
+      "tournament": "Bayerische Meisterschaft Einzel Damen",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Laub, Sabrina",
+          "club": "BV 68 Regensburg",
+          "average": 235.7
+        },
+        {
+          "rank": 2,
+          "player": "Mareiser, Alexandra",
+          "club": "BSV Stein",
+          "average": 217.5
+        },
+        {
+          "rank": 3,
+          "player": "Körber, Anika",
+          "club": "Triple X Stein",
+          "average": 205.1
+        }
+      ]
+    },
+    {
+      "season": "17/18",
+      "tournament": "Nordbayrische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Wölki, Robert",
+          "club": "BV 68 Regensburg",
+          "average": 227.2
+        },
+        {
+          "rank": 2,
+          "player": "Völlmerk, Oliver",
+          "club": "Raubritter 78 Hallstadt",
+          "average": 223.3
+        },
+        {
+          "rank": 3,
+          "player": "Altenfeld, Marco",
+          "club": "Raubritter 78 Hallstadt",
+          "average": 220.8
+        }
+      ]
+    },
+    {
+      "season": "17/18",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Glasl jun., Hans-Jürgen",
+          "club": "Bajuwaren München",
+          "average": 232.1
+        },
+        {
+          "rank": 2,
+          "player": "Ulsamer jun., Clemens",
+          "club": "BC EMAX Unterföhring",
+          "average": 226.2
+        },
+        {
+          "rank": 3,
+          "player": "Mrosek, Manuel",
+          "club": "BC EMAX Unterföhring",
+          "average": 224.9
+        }
+      ]
+    },
+    {
+      "season": "16/17",
+      "tournament": "Bayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Börding, Tobias",
+          "club": "Ratisbona Regensburg",
+          "average": 219.7
+        },
+        {
+          "rank": 2,
+          "player": "Völlmerk, Oliver",
+          "club": "Raubritter 78 Hallstadt",
+          "average": 209.4
+        },
+        {
+          "rank": 3,
+          "player": "Pirzer, Robert",
+          "club": "Team ProfiShop München",
+          "average": 207.8
+        }
+      ]
+    },
+    {
+      "season": "16/17",
+      "tournament": "Bayerische Meisterschaft Einzel Damen",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Mareiser, Alexandra",
+          "club": "RW 69 Lichtenhof Stein",
+          "average": 213.4
+        },
+        {
+          "rank": 2,
+          "player": "Betz, Christiane",
+          "club": "RW 69 Lichtenhof Stein",
+          "average": 208.4
+        },
+        {
+          "rank": 3,
+          "player": "Bess, Vanessa",
+          "club": "EPA München",
+          "average": 205.9
+        }
+      ]
+    },
+    {
+      "season": "16/17",
+      "tournament": "Nordbayrische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Wölki, Robert",
+          "club": "Ratisbona Regensburg",
+          "average": 220.3
+        },
+        {
+          "rank": 2,
+          "player": "Michow, Andre",
+          "club": "Ratisbona Regensburg",
+          "average": 217.5
+        },
+        {
+          "rank": 3,
+          "player": "Völlmerk, Oliver",
+          "club": "Raubritter 78 Hallstadt",
+          "average": 216.8
+        }
+      ]
+    },
+    {
+      "season": "16/17",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Ulsamer jun., Clemens",
+          "club": "BC EMAX Unterföhring",
+          "average": 229.1
+        },
+        {
+          "rank": 2,
+          "player": "Glasl jun., Hans-Jürgen",
+          "club": "Bajuwaren München",
+          "average": 227.2
+        },
+        {
+          "rank": 3,
+          "player": "Hergenröder, Dominik",
+          "club": "BC EMAX Unterföhring",
+          "average": 227.1
+        }
+      ]
+    },
+    {
+      "season": "15/16",
+      "tournament": "Bayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Börding, Tobias",
+          "club": "Ratisbona Regensburg",
+          "average": 217.2
+        },
+        {
+          "rank": 2,
+          "player": "Völlmerk, Oliver",
+          "club": "Raubritter 78 Hallstadt",
+          "average": 216.7
+        },
+        {
+          "rank": 3,
+          "player": "Rechenberg, Christian",
+          "club": "Ratisbona Regensburg",
+          "average": 211.6
+        }
+      ]
+    },
+    {
+      "season": "15/16",
+      "tournament": "Bayerische Meisterschaft Einzel Damen",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Laub, Sabrina",
+          "club": "REG - Lucky Striker Regensburg",
+          "average": 218.9
+        },
+        {
+          "rank": 2,
+          "player": "Lindner, Eva",
+          "club": "Team ProfiShop München",
+          "average": 212.4
+        },
+        {
+          "rank": 3,
+          "player": "Theissen, Tanja",
+          "club": "REG - Lucky Striker Regensburg",
+          "average": 211.0
+        }
+      ]
+    },
+    {
+      "season": "15/16",
+      "tournament": "Nordbayrische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Völlmerk, Oliver",
+          "club": "Raubritter 78 Hallstadt",
+          "average": 235.6
+        },
+        {
+          "rank": 2,
+          "player": "Koller, Alexander",
+          "club": "Ratisbona Regensburg",
+          "average": 233.6
+        },
+        {
+          "rank": 3,
+          "player": "Ott, Sebastian",
+          "club": "Ratisbona Regensburg",
+          "average": 222.2
+        }
+      ]
+    },
+    {
+      "season": "15/16",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Mrosek, Manuel",
+          "club": "BC EMAX Unterföhring",
+          "average": 220.3
+        },
+        {
+          "rank": 2,
+          "player": "Horbas, Daniel",
+          "club": "BK München",
+          "average": 219.0
+        },
+        {
+          "rank": 3,
+          "player": "Glasl jun., Hans-Jürgen",
+          "club": "Bajuwaren München",
+          "average": 217.3
+        }
+      ]
+    },
+    {
+      "season": "14/15",
+      "tournament": "Bayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Börding, Tobias",
+          "club": "Ratisbona Regensburg",
+          "average": 237.2
+        },
+        {
+          "rank": 2,
+          "player": "Glasl jun., Hans-Jürgen",
+          "club": "Bajuwaren München",
+          "average": 229.4
+        },
+        {
+          "rank": 3,
+          "player": "Wölki, Robert",
+          "club": "Ratisbona Regensburg",
+          "average": 227.9
+        }
+      ]
+    },
+    {
+      "season": "14/15",
+      "tournament": "Nordbayrische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Harles, Michael",
+          "club": "BC Comet Nürnberg",
+          "average": 230.2
+        },
+        {
+          "rank": 2,
+          "player": "Börding, Tobias",
+          "club": "REG",
+          "average": 222.5
+        },
+        {
+          "rank": 3,
+          "player": "Baszler, Patrick",
+          "club": "Ratisbona Regensburg",
+          "average": 217.3
+        }
+      ]
+    },
+    {
+      "season": "13/14",
+      "tournament": "Bayerische Meisterschaft Einzel Damen",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Glasl, Cornelia",
+          "club": "Ø  202,7",
+          "average": 212.9
+        },
+        {
+          "rank": 2,
+          "player": "Völlmerk, Julia",
+          "club": "Lechbowler Augsburg",
+          "average": 180.7
+        },
+        {
+          "rank": 3,
+          "player": "Von Berg, Karen",
+          "club": "HighRoller Rosenheim",
+          "average": 178.1
+        }
+      ]
+    },
+    {
+      "season": "13/14",
+      "tournament": "Nordbayrische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Börding, Tobias",
+          "club": "Ratisbona Regensburg",
+          "average": 221.1
+        },
+        {
+          "rank": 2,
+          "player": "Leuchtenberger, Dominik",
+          "club": "Raubritter 78 Hallstadt",
+          "average": 213.9
+        },
+        {
+          "rank": 3,
+          "player": "Koller, Alexander",
+          "club": "Ratisbona Regensburg",
+          "average": 208.6
+        }
+      ]
+    },
+    {
+      "season": "13/14",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Mrosek, Manuel",
+          "club": "Delphin München",
+          "average": 229.5
+        },
+        {
+          "rank": 2,
+          "player": "Schütt, Philipp",
+          "club": "Team ProfiShop München",
+          "average": 221.6
+        },
+        {
+          "rank": 3,
+          "player": "Glasl jun., Hans-Jürgen",
+          "club": "Bajuwaren München",
+          "average": 220.8
+        }
+      ]
+    },
+    {
+      "season": "12/13",
+      "tournament": "Bayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Köberl, Martin",
+          "club": "Delphin München",
+          "average": 202.0
+        },
+        {
+          "rank": 2,
+          "player": "Hernitschek, Andreas",
+          "club": "Ø  197,2",
+          "average": 201.8
+        },
+        {
+          "rank": 3,
+          "player": "Maravic, Alexander von",
+          "club": "Bavaria Unterföhring",
+          "average": 200.9
+        }
+      ]
+    },
+    {
+      "season": "12/13",
+      "tournament": "Bayerische Meisterschaft Einzel Damen",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Gschrey, Stefanie",
+          "club": "Münchner Kegler-Verein e.V.",
+          "average": 228.0
+        },
+        {
+          "rank": 2,
+          "player": "Theissen, Tanja",
+          "club": "BV 68 Regensburg",
+          "average": 218.0
+        },
+        {
+          "rank": 3,
+          "player": "Dozauer, Jessica",
+          "club": "Münchner Kegler-Verein e.V.",
+          "average": 208.7
+        }
+      ]
+    },
+    {
+      "season": "12/13",
+      "tournament": "Nordbayrische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Harles, Michael",
+          "club": "BC Comet Nürnberg",
+          "average": 224.1
+        },
+        {
+          "rank": 2,
+          "player": "Wahl, Norbert",
+          "club": "BC Comet Nürnberg",
+          "average": 212.1
+        },
+        {
+          "rank": 3,
+          "player": "Völlmerk, Oliver",
+          "club": "Raubritter 78 Hallstadt",
+          "average": 209.8
+        }
+      ]
+    },
+    {
+      "season": "12/13",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Schütt, Philipp",
+          "club": "Team ProfiShop München",
+          "average": 228.6
+        },
+        {
+          "rank": 2,
+          "player": "Glasl jun., Hans-Jürgen",
+          "club": "Bajuwaren München",
+          "average": 225.9
+        },
+        {
+          "rank": 3,
+          "player": "Mrosek, Manuel",
+          "club": "Delphin München",
+          "average": 221.2
+        }
+      ]
+    },
+    {
+      "season": "11/12",
+      "tournament": "Bayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Hellmich, Daniel",
+          "club": "Bavaria Unterföhring",
+          "average": 229.5
+        },
+        {
+          "rank": 2,
+          "player": "Börding, Tobias",
+          "club": "Ratisbona Regensburg",
+          "average": 224.9
+        },
+        {
+          "rank": 3,
+          "player": "Schütt, Philipp",
+          "club": "Delphin München",
+          "average": 221.3
+        }
+      ]
+    },
+    {
+      "season": "11/12",
+      "tournament": "Bayerische Meisterschaft Einzel Damen",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Glasl, Gerda",
+          "club": "BK München",
+          "average": 181.1
+        },
+        {
+          "rank": 2,
+          "player": "Völlmerk, Julia",
+          "club": "Lechbowler Augsburg",
+          "average": 180.3
+        },
+        {
+          "rank": 3,
+          "player": "Hofbauer, Daniela",
+          "club": "SG Rottendorf",
+          "average": 178.2
+        }
+      ]
+    },
+    {
+      "season": "11/12",
+      "tournament": "Nordbayrische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Wölki, Robert",
+          "club": "BV 68 Regensburg",
+          "average": 223.0
+        },
+        {
+          "rank": 2,
+          "player": "Harles, Michael",
+          "club": "Germania Bayreuth",
+          "average": 221.6
+        },
+        {
+          "rank": 3,
+          "player": "Ott, Sebastian",
+          "club": "Raubritter 78 Hallstadt",
+          "average": 217.3
+        }
+      ]
+    },
+    {
+      "season": "11/12",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Köberl, Martin",
+          "club": "Delphin München",
+          "average": 232.1
+        },
+        {
+          "rank": 2,
+          "player": "Fleischhauer, Joachim",
+          "club": "Bavaria Unterföhring",
+          "average": 221.8
+        },
+        {
+          "rank": 3,
+          "player": "Ghanbar, Robert",
+          "club": "Delphin München",
+          "average": 215.9
+        }
+      ]
+    },
+    {
+      "season": "10/11",
+      "tournament": "Bayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Wölki, Robert",
+          "club": "Münchner Kegler-Verein e.V.",
+          "average": 241.5
+        },
+        {
+          "rank": 2,
+          "player": "Weigand, Gerhard",
+          "club": "BC Comet Nürnberg",
+          "average": 233.9
+        },
+        {
+          "rank": 3,
+          "player": "Völlmerk, Oliver",
+          "club": "Raubritter 78 Hallstadt",
+          "average": 230.5
+        }
+      ]
+    },
+    {
+      "season": "10/11",
+      "tournament": "Bayerische Meisterschaft Einzel Damen",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Lindner, Eva",
+          "club": "MÄnchner Kegler-Verein e.V.",
+          "average": 213.6
+        },
+        {
+          "rank": 2,
+          "player": "Betz, Christiane",
+          "club": "RW 69 Lichtenhof Stein",
+          "average": 205.3
+        },
+        {
+          "rank": 3,
+          "player": "Theissen, Tanja",
+          "club": "BV 68 Regensburg",
+          "average": 200.9
+        }
+      ]
+    },
+    {
+      "season": "10/11",
+      "tournament": "Nordbayrische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Altenfeld, Marco",
+          "club": "Raubritter 78 Hallstadt",
+          "average": 215.5
+        },
+        {
+          "rank": 2,
+          "player": "Rechenberg, Christian",
+          "club": "BV 68 Regensburg",
+          "average": 213.7
+        },
+        {
+          "rank": 3,
+          "player": "Gruosso, Nico",
+          "club": "Germania Bayreuth",
+          "average": 213.7
+        }
+      ]
+    },
+    {
+      "season": "10/11",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Wölki, Robert",
+          "club": "Münchner Kegler-Verein e.V.",
+          "average": 233.2
+        },
+        {
+          "rank": 2,
+          "player": "Mrosek, Manuel",
+          "club": "Münchner Kegler-Verein e.V.",
+          "average": 232.6
+        },
+        {
+          "rank": 3,
+          "player": "Börding, Tobias",
+          "club": "Bayerland München",
+          "average": 226.1
+        }
+      ]
+    },
+    {
+      "season": "09/10",
+      "tournament": "Bayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Harles, Michael",
+          "club": "Germania Bayreuth",
+          "average": 221.0
+        },
+        {
+          "rank": 2,
+          "player": "Rotter, Mark-Roland",
+          "club": "Murmels Neu-Ulm",
+          "average": 208.4
+        },
+        {
+          "rank": 3,
+          "player": "Reasoner, Kevin",
+          "club": "Donaubowler Regensburg",
+          "average": 208.3
+        }
+      ]
+    },
+    {
+      "season": "09/10",
+      "tournament": "Bayerische Meisterschaft Einzel Damen",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Laub, Sabrina",
+          "club": "BV 68 Regensburg",
+          "average": 198.2
+        },
+        {
+          "rank": 2,
+          "player": "Rechenberg, Nicole",
+          "club": "1. BSV Ulm/Neu-Ulm",
+          "average": 194.2
+        },
+        {
+          "rank": 3,
+          "player": "Wagner, Janina",
+          "club": "BSV Augsburg",
+          "average": 189.1
+        }
+      ]
+    },
+    {
+      "season": "09/10",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Mrosek, Manuel",
+          "club": "Münchner KV",
+          "average": 233.5
+        },
+        {
+          "rank": 2,
+          "player": "Schrempf, Christian",
+          "club": "Münchner KV",
+          "average": 226.4
+        },
+        {
+          "rank": 3,
+          "player": "Peinelt, Helmut",
+          "club": "Delphin München",
+          "average": 226.3
+        }
+      ]
+    },
+    {
+      "season": "08/09",
+      "tournament": "Bayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Köpf, Reiner",
+          "club": "MÜL",
+          "average": 203.1
+        },
+        {
+          "rank": 2,
+          "player": "Renner, Peter",
+          "club": "REG",
+          "average": 200.6
+        },
+        {
+          "rank": 3,
+          "player": "Obermeier, Kurt",
+          "club": "Donaubowler Regensburg",
+          "average": 200.0
+        }
+      ]
+    },
+    {
+      "season": "08/09",
+      "tournament": "Bayerische Meisterschaft Einzel Damen",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Laub, Sabrina",
+          "club": "BSV Augsburg",
+          "average": 221.5
+        },
+        {
+          "rank": 2,
+          "player": "Lindner, Eva",
+          "club": "Civis München",
+          "average": 219.4
+        },
+        {
+          "rank": 3,
+          "player": "Dozauer, Jessica",
+          "club": "KV München",
+          "average": 200.9
+        }
+      ]
+    },
+    {
+      "season": "08/09",
+      "tournament": "Nordbayrische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Batusha, Burim",
+          "club": "Pinkiller Lichtenfels",
+          "average": 173.1
+        },
+        {
+          "rank": 2,
+          "player": "Weber, Wolfgang",
+          "club": "Mainfranken Bamberg",
+          "average": 230.1
+        },
+        {
+          "rank": 3,
+          "player": "Körber, Paul",
+          "club": "BC Comet Nürnberg",
+          "average": 224.8
+        }
+      ]
+    },
+    {
+      "season": "08/09",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Köpf, Reiner",
+          "club": "BV München Land",
+          "average": 227.7
+        },
+        {
+          "rank": 2,
+          "player": "Cremer, Christian",
+          "club": "Delphin München",
+          "average": 224.9
+        },
+        {
+          "rank": 3,
+          "player": "Schweigert, Ulrich",
+          "club": "Münchner Kindl",
+          "average": 222.3
+        }
+      ]
+    },
+    {
+      "season": "07/08",
+      "tournament": "Bayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Koller, Alexander",
+          "club": "REG",
+          "average": 232.7
+        },
+        {
+          "rank": 2,
+          "player": "Stallworth, Holton",
+          "club": "ABV",
+          "average": 225.5
+        },
+        {
+          "rank": 3,
+          "player": "Söllner, Willi",
+          "club": "REG",
+          "average": 223.7
+        }
+      ]
+    },
+    {
+      "season": "07/08",
+      "tournament": "Nordbayrische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Renner, Peter",
+          "club": "REG",
+          "average": 221.7
+        },
+        {
+          "rank": 2,
+          "player": "Beck, Joseph",
+          "club": "REG",
+          "average": 219.7
+        },
+        {
+          "rank": 3,
+          "player": "Harles, Michael",
+          "club": "BAY",
+          "average": 216.2
+        }
+      ]
+    },
+    {
+      "season": "07/08",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Hernitschek, Andreas",
+          "club": "KV München",
+          "average": 221.1
+        },
+        {
+          "rank": 2,
+          "player": "Remmel, Friedhelm",
+          "club": "BSV Augsburg",
+          "average": 220.0
+        },
+        {
+          "rank": 3,
+          "player": "Glasl jun., Hans-Jürgen",
+          "club": "KV München",
+          "average": 217.9
+        }
+      ]
+    },
+    {
+      "season": "06/07",
+      "tournament": "Bayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Mrosek, Manuel",
+          "club": "KV München",
+          "average": 224.3
+        },
+        {
+          "rank": 2,
+          "player": "Hofbauer, Karlheinz",
+          "club": "Ratisbona Regensburg",
+          "average": 221.6
+        },
+        {
+          "rank": 3,
+          "player": "Schön, Christian",
+          "club": "DJK Rimpar",
+          "average": 220.5
+        }
+      ]
+    },
+    {
+      "season": "06/07",
+      "tournament": "Bayerische Meisterschaft Einzel Damen",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Lindner, Eva",
+          "club": "KV München",
+          "average": 205.6
+        },
+        {
+          "rank": 2,
+          "player": "Piel, Beate",
+          "club": "KV München",
+          "average": 203.2
+        },
+        {
+          "rank": 3,
+          "player": "Gschrey, Stefanie",
+          "club": "KV München",
+          "average": 199.8
+        }
+      ]
+    },
+    {
+      "season": "06/07",
+      "tournament": "Nordbayrische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Hergenröder, Dominik",
+          "club": "REG",
+          "average": 213.7
+        },
+        {
+          "rank": 2,
+          "player": "Walzer, Peter",
+          "club": "REG",
+          "average": 212.3
+        },
+        {
+          "rank": 3,
+          "player": "Ulsamer jun., Clemens",
+          "club": "SG Rottendorf",
+          "average": 212.2
+        }
+      ]
+    },
+    {
+      "season": "06/07",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Fleischhauer, Joachim",
+          "club": "BV München Land",
+          "average": 204.2
+        },
+        {
+          "rank": 2,
+          "player": "Mc Fadden, Gerhard",
+          "club": "Münchner KV",
+          "average": 183.5
+        },
+        {
+          "rank": 3,
+          "player": "Pirzer, Robert",
+          "club": "Münchner KV",
+          "average": 219.9
+        }
+      ]
+    },
+    {
+      "season": "05/06",
+      "tournament": "Bayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Mrosek, Manuel",
+          "club": "Münchner KV",
+          "average": 204.6
+        },
+        {
+          "rank": 2,
+          "player": "Fleischhauer, Joachim",
+          "club": "BV München Land",
+          "average": 220.6
+        },
+        {
+          "rank": 3,
+          "player": "Laub, Harald",
+          "club": "Münchner KV",
+          "average": 218.1
+        }
+      ]
+    },
+    {
+      "season": "05/06",
+      "tournament": "Bayerische Meisterschaft Einzel Damen",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Piel, Beate",
+          "club": "Bad-Tölz",
+          "average": 201.0
+        },
+        {
+          "rank": 2,
+          "player": "Hernitschek, Angelika",
+          "club": "Münchner KV",
+          "average": 196.1
+        },
+        {
+          "rank": 3,
+          "player": "Lindner, Eva",
+          "club": "Münchner KV",
+          "average": 196.0
+        }
+      ]
+    },
+    {
+      "season": "05/06",
+      "tournament": "Nordbayrische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Hergenröder, Dominik",
+          "club": "REG",
+          "average": 218.8
+        },
+        {
+          "rank": 2,
+          "player": "Eberhard, Gladisch",
+          "club": "WÜR",
+          "average": 216.4
+        },
+        {
+          "rank": 3,
+          "player": "Roland, Lerner",
+          "club": "BAY",
+          "average": 215.9
+        }
+      ]
+    },
+    {
+      "season": "05/06",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "finishers": [
+        {
+          "rank": 1,
+          "player": "Peinelt, Helmut",
+          "club": "München",
+          "average": 228.0
+        },
+        {
+          "rank": 2,
+          "player": "Völlmerk, Oliver",
+          "club": "Augsburg",
+          "average": 227.0
+        },
+        {
+          "rank": 3,
+          "player": "Bänsch, Richard",
+          "club": "Berchtesgaden",
+          "average": 225.7
+        }
+      ]
+    }
+  ],
+  "feller": [
+    {
+      "season": "25/26",
+      "tournament": "Bayerische Meisterschaft Einzel",
+      "position": 79
+    },
+    {
+      "season": "25/26",
+      "tournament": "Clubmeisterschaft Donaubowler",
+      "position": 1
+    },
+    {
+      "season": "25/26",
+      "tournament": "Nordbayrische Meisterschaft Einzel",
+      "position": 12
+    },
+    {
+      "season": "17/18",
+      "tournament": "Nordbayrische Meisterschaft Einzel",
+      "position": 38
+    },
+    {
+      "season": "13/14",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "position": 108
+    },
+    {
+      "season": "12/13",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "position": 48
+    },
+    {
+      "season": "11/12",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "position": 37
+    },
+    {
+      "season": "10/11",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "position": 97
+    },
+    {
+      "season": "09/10",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "position": 92
+    },
+    {
+      "season": "08/09",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "position": 55
+    },
+    {
+      "season": "07/08",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "position": 55
+    },
+    {
+      "season": "06/07",
+      "tournament": "Südbayerische Meisterschaft Einzel",
+      "position": 97
+    }
+  ]
+}

@@ -10,6 +10,8 @@ from bowlyzerapi.queries.util import as_str
 from bowlyzerapi.warehouse import data_revision
 
 _CACHE: dict[str, str] | None = None
+_CACHE_ALIASES: dict[str, tuple[str, ...]] | None = None
+_CACHE_LABEL_TO_ID: dict[str, str] | None = None
 _CACHE_REV: str | None = None
 
 
@@ -49,11 +51,11 @@ def collapse_player_catalog(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return players
 
 
-def canonical_player_names(con) -> dict[str, str]:
-    global _CACHE, _CACHE_REV
+def _ensure_identity_cache(con) -> None:
+    global _CACHE, _CACHE_ALIASES, _CACHE_LABEL_TO_ID, _CACHE_REV
     revision = str(data_revision() or "")
     if _CACHE is not None and _CACHE_REV == revision:
-        return _CACHE
+        return
     g = game_line
     t = tournament_line
     rows = fetch_dicts(
@@ -77,9 +79,72 @@ def canonical_player_names(con) -> dict[str, str]:
         .where(~is_bye(t.player_name), t.player_id.is_not_null(), trim(t.player_id) != "")
         .group_by(t.player_id, t.player_name),
     )
-    _CACHE = {row["id"]: row["name"] for row in collapse_player_catalog(rows) if row["id"]}
+    names: dict[str, str] = {}
+    aliases: dict[str, tuple[str, ...]] = {}
+    label_ids: dict[str, set[str]] = {}
+    for row in collapse_player_catalog(rows):
+        player_id = row["id"]
+        if not player_id:
+            continue
+        labels = (row["name"], *row["aliases"])
+        names[player_id] = row["name"]
+        aliases[player_id] = labels
+        for label in labels:
+            key = str(label).casefold()
+            if not key:
+                continue
+            label_ids.setdefault(key, set()).add(player_id)
+    _CACHE = names
+    _CACHE_ALIASES = aliases
+    _CACHE_LABEL_TO_ID = {key: next(iter(ids)) for key, ids in label_ids.items() if len(ids) == 1}
     _CACHE_REV = revision
-    return _CACHE
+
+
+def canonical_player_names(con) -> dict[str, str]:
+    _ensure_identity_cache(con)
+    return _CACHE or {}
+
+
+def identity_labels(con, player_id: str | None, player_name: str | None) -> list[str]:
+    """Canonical name plus aliases for this id, plus the resolved display name."""
+    _ensure_identity_cache(con)
+    labels: list[str] = []
+    seen: set[str] = set()
+
+    def add(name: str | None) -> None:
+        text = (name or "").strip()
+        key = text.casefold()
+        if not text or key in seen:
+            return
+        seen.add(key)
+        labels.append(text)
+
+    add(player_name)
+    pid = (player_id or "").strip()
+    if pid:
+        add((_CACHE or {}).get(pid))
+        for alias in (_CACHE_ALIASES or {}).get(pid, ()):
+            add(alias)
+    return labels
+
+
+def fold_orphan_player_ids(
+    con,
+    rows: list[dict[str, Any]],
+    *,
+    name_key: str = "player_name",
+    id_key: str = "player_id",
+) -> None:
+    """Attach a catalog id to name-only rows when that label uniquely maps to one player."""
+    _ensure_identity_cache(con)
+    mapping = _CACHE_LABEL_TO_ID or {}
+    for row in rows:
+        if as_str(row.get(id_key) or row.get("id")):
+            continue
+        name = as_str(row.get(name_key) or row.get("name")) or ""
+        mapped = mapping.get(name.casefold())
+        if mapped:
+            row[id_key] = mapped
 
 
 def apply_canonical_player_names(con, rows: list[dict[str, Any]], *, name_key: str = "player_name") -> None:

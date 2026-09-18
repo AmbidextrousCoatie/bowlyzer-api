@@ -18,6 +18,7 @@ from bowlyzerapi.engine import (
     fetch_scalar,
     lower,
     max_,
+    or_,
     range_,
     rank,
     relation,
@@ -34,6 +35,7 @@ from bowlyzerapi.queries.identity import apply_canonical_player_names, collapse_
 from bowlyzerapi.queries.tournament_ko import (
     apply_ko_ranks,
     build_ko_bracket,
+    config_entry,
     format_ko_fields,
     is_ko_round_name,
     ko_finale_round_number,
@@ -117,6 +119,17 @@ def _resolve_events(con, season: str | None, event: str | None) -> list[str]:
     if season:
         q = q.where(t.season == season)
     names = [str(row[0]).strip() for row in fetch_rows(con, q) if row[0] and str(row[0]).strip()]
+    exact = [name for name in names if name == needle]
+    if exact:
+        return exact
+    group = normalize_tournament_group_name(needle)
+    return [name for name in names if normalize_tournament_group_name(name) == group]
+
+
+def _match_event_names(names: list[str], needle: str) -> list[str]:
+    needle = (needle or "").strip()
+    if not needle:
+        return []
     exact = [name for name in names if name == needle]
     if exact:
         return exact
@@ -634,52 +647,116 @@ def tournament_player_section(season: str, event: str, player: str) -> dict[str,
     }
 
 
-def _load_event_games(season: str, event: str) -> list[dict[str, Any]]:
-    t = tournament_line
-    with session() as con:
-        events = _resolve_events(con, season, event)
-        if not events:
-            return []
-        games = fetch_dicts(
-            con,
-            Query()
-            .from_(t)
-            .select(
-                trim(t.player_name).as_("player_name"),
-                t.player_id,
-                t.club,
-                t.round_number,
-                t.round_name,
-                t.game_number,
-                t.score,
-                t.handicap,
-                t.apriori_average,
-                t.handicap_reference,
-                t.stage_rank,
-            )
-            .where(_event_filter(t, season, events), ~is_bye(t.player_name))
-            .order_by(t.round_number, t.game_number, t.player_name),
-        )
-        apply_canonical_player_names(con, games)
-    return games
+def _needs_ko(season: str, event: str, games: list[dict[str, Any]]) -> bool:
+    if config_entry(season, event):
+        return True
+    return any(is_ko_round_name(as_str(row.get("round_name"))) for row in games)
 
 
-def overall_standings(season: str, event: str) -> list[dict[str, Any]]:
+def _standings_from_loaded_games(season: str, event: str, games: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Gesamt leaderboard with KO / stepladder places when the event has a bracket."""
-    games = _load_event_games(season, event)
     if not games:
         return []
     use_net = any(
         (as_int(row.get("handicap")) or 0) != 0 or row.get("apriori_average") is not None
         for row in games
     )
-    ko_bracket = build_ko_bracket(season, event, games)
     scored = [row for row in games if not _is_walkover(row)]
     leaderboard = _leaderboard_from_games(scored, use_net=use_net, through_round=None)
-    if ko_bracket.get("matches"):
-        leaderboard = apply_ko_ranks(leaderboard, ko_bracket)
-        leaderboard.sort(key=lambda row: (int(row.get("rank") or 10**9), str(row.get("player") or "")))
+    if _needs_ko(season, event, games):
+        ko_bracket = build_ko_bracket(season, event, games)
+        if ko_bracket.get("matches"):
+            leaderboard = apply_ko_ranks(leaderboard, ko_bracket)
+            leaderboard.sort(key=lambda row: (int(row.get("rank") or 10**9), str(row.get("player") or "")))
     return leaderboard
+
+
+def overall_standings_for(pairs: list[tuple[str, str]]) -> dict[tuple[str, str], list[dict[str, Any]]]:
+    """KO-aware standings for many (season, event) keys in one warehouse session."""
+    unique: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for season, event in pairs:
+        key = (as_str(season) or "", as_str(event) or "")
+        if not key[0] or not key[1] or key in seen:
+            continue
+        seen.add(key)
+        unique.append(key)
+    if not unique:
+        return {}
+
+    t = tournament_line
+    with session() as con:
+        seasons = list(dict.fromkeys(season for season, _ in unique))
+        catalog_rows = fetch_dicts(
+            con,
+            Query()
+            .from_(t)
+            .select(t.season, t.event)
+            .where(t.season.in_(*seasons), t.event.is_not_null())
+            .distinct(),
+        )
+        by_season: dict[str, list[str]] = {}
+        for row in catalog_rows:
+            by_season.setdefault(str(row["season"]), []).append((as_str(row["event"]) or "").strip())
+
+        resolved: dict[tuple[str, str], list[str]] = {}
+        actual_pairs: list[tuple[str, str]] = []
+        seen_actual: set[tuple[str, str]] = set()
+        for season, needle in unique:
+            names = _match_event_names(by_season.get(season, []), needle)
+            resolved[(season, needle)] = names
+            for name in names:
+                actual = (season, name)
+                if actual in seen_actual:
+                    continue
+                seen_actual.add(actual)
+                actual_pairs.append(actual)
+
+        games_by_actual: dict[tuple[str, str], list[dict[str, Any]]] = {key: [] for key in seen_actual}
+        if actual_pairs:
+            games = fetch_dicts(
+                con,
+                Query()
+                .from_(t)
+                .select(
+                    t.season,
+                    t.event,
+                    trim(t.player_name).as_("player_name"),
+                    t.player_id,
+                    t.club,
+                    t.round_number,
+                    t.round_name,
+                    t.game_number,
+                    t.score,
+                    t.handicap,
+                    t.apriori_average,
+                    t.handicap_reference,
+                    t.stage_rank,
+                )
+                .where(
+                    or_(*[_event_filter(t, season, [event]) for season, event in actual_pairs]),
+                    ~is_bye(t.player_name),
+                )
+                .order_by(t.season, t.event, t.round_number, t.game_number, t.player_name),
+            )
+            apply_canonical_player_names(con, games)
+            for row in games:
+                key = (str(row["season"]), as_str(row["event"]) or "")
+                games_by_actual.setdefault(key, []).append(row)
+
+    out: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for pair in unique:
+        games: list[dict[str, Any]] = []
+        for name in resolved.get(pair) or []:
+            games.extend(games_by_actual.get((pair[0], name), []))
+        out[pair] = _standings_from_loaded_games(pair[0], pair[1], games)
+    return out
+
+
+def overall_standings(season: str, event: str) -> list[dict[str, Any]]:
+    """Gesamt leaderboard with KO / stepladder places when the event has a bracket."""
+    key = (as_str(season) or "", as_str(event) or "")
+    return overall_standings_for([key]).get(key, [])
 
 
 def tournament_podiums(
@@ -693,7 +770,7 @@ def tournament_podiums(
     n = max(1, min(int(n), 10))
     group_filter = normalize_tournament_group_name(event) if event else ""
     seen_groups: set[tuple[str, str]] = set()
-    podiums = []
+    keys: list[tuple[str, str]] = []
     for item in listing["tournaments"]:
         group = item.get("tournament_group") or normalize_tournament_group_name(item["event"])
         if group_filter and group != group_filter:
@@ -702,8 +779,12 @@ def tournament_podiums(
         if key in seen_groups:
             continue
         seen_groups.add(key)
+        keys.append(key)
+    standings_map = overall_standings_for(keys)
+    podiums = []
+    for season_key, group in keys:
         finishers = []
-        for row in overall_standings(item["season"], group)[:n]:
+        for row in (standings_map.get((season_key, group)) or [])[:n]:
             if club and str(row.get("club") or "").casefold() != club.casefold():
                 continue
             finishers.append(
@@ -718,7 +799,7 @@ def tournament_podiums(
             continue
         podiums.append(
             {
-                "season": item["season"],
+                "season": season_key,
                 "tournament": group,
                 "tournament_group": group,
                 "finishers": finishers[:n],

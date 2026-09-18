@@ -27,6 +27,7 @@ import data and probe health without locking the stack.
 | `bowlyzerapi/engine/` | Typed SQL catalog + parameterized query compiler |
 | `openapi/openapi.yaml` | `/api/v1` contract (source of truth) |
 | `docs/resources.md` | Flask RPC → v1 keep / merge / drop |
+| `docs/player-identity.md` | Historic games with empty `player_id` (publish gap) |
 | `docs/bench-get-section.md` | DuckDB vs Flask kernel timings |
 | `data/bowlyzer.duckdb` | Local warehouse (gitignored) |
 
@@ -92,3 +93,4 @@ at any published Parquet directory. After a weekend league drop, re-run
 1. Query performance — N+1 standings / podiums / player-tournament places; see [`docs/perf.md`](docs/perf.md)
 2. Staging → publish for live league days (verified results only)
 3. Remaining Flask: i18n, session/Datenquelle, diagnosis / pipeline
+4. Backfill empty `player_id` on historic game rows — [`docs/player-identity.md`](docs/player-identity.md)

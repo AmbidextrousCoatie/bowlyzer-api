@@ -13,7 +13,8 @@ redesign palettes or Tabulator fields.
 
 Contract: [`openapi/openapi.yaml`](../openapi/openapi.yaml). Spike results:
 [`bench-get-section.md`](bench-get-section.md). Slow kernels and live-publish
-notes: [`perf.md`](perf.md).
+notes: [`perf.md`](perf.md). Empty historic `player_id`s:
+[`player-identity.md`](player-identity.md).
 
 ## Status
 

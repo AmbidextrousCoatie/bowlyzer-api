@@ -38,7 +38,7 @@ from bowlyzerapi.queries.filters import (
     pins,
     resolve_club,
 )
-from bowlyzerapi.queries.identity import apply_canonical_player_names
+from bowlyzerapi.queries.identity import apply_canonical_player_names, fold_orphan_player_ids
 from bowlyzerapi.queries.util import as_float, as_int, as_str
 from bowlyzerapi.warehouse import connect, session
 
@@ -397,13 +397,52 @@ def club_players(club: str, *, season: str | None = None) -> dict[str, Any]:
                     "club_active": bool(row.get("club_active")),
                 }
             )
+        fold_orphan_player_ids(con, players)
+        players = _merge_club_player_rows(players)
         apply_canonical_player_names(con, players)
+        players.sort(
+            key=lambda row: (-(row.get("average") or 0), -(row.get("games") or 0), row.get("player_name") or "")
+        )
+        for index, row in enumerate(players, start=1):
+            row["rank"] = index
     return {
         "club": canonical,
         "season": season,
         "latest_season": latest_season,
         "players": players,
     }
+
+
+def _merge_club_player_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_id: dict[str, dict[str, Any]] = {}
+    leftover: list[dict[str, Any]] = []
+    for row in rows:
+        player_id = as_str(row.get("player_id")) or ""
+        if not player_id:
+            leftover.append(row)
+            continue
+        current = by_id.get(player_id)
+        if current is None:
+            by_id[player_id] = row
+            continue
+        g1 = as_int(current.get("games")) or 0
+        g2 = as_int(row.get("games")) or 0
+        games = g1 + g2
+        pins = (as_float(current.get("average")) or 0) * g1 + (as_float(row.get("average")) or 0) * g2
+        current["games"] = games
+        current["average"] = round(pins / games, 2) if games else current.get("average")
+        current["membership_seasons"] = (as_int(current.get("membership_seasons")) or 0) + (
+            as_int(row.get("membership_seasons")) or 0
+        )
+        current["club_active"] = bool(current.get("club_active")) or bool(row.get("club_active"))
+        best_a = as_float(current.get("best_season_average"))
+        best_b = as_float(row.get("best_season_average"))
+        if best_b is not None and (best_a is None or best_b > best_a):
+            current["best_season"] = row.get("best_season")
+            current["best_season_average"] = best_b
+        if row.get("player_name") and not current.get("player_name"):
+            current["player_name"] = row.get("player_name")
+    return list(by_id.values()) + leftover
 
 
 def _team_number(team: str | None) -> int | None:
@@ -829,9 +868,71 @@ def _empty_legends() -> dict[str, list]:
     }
 
 
+def _merge_legend_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_id: dict[str, dict[str, Any]] = {}
+    leftover: list[dict[str, Any]] = []
+    for entry in entries:
+        player_id = as_str(entry.get("player_id")) or ""
+        if not player_id:
+            leftover.append(entry)
+            continue
+        current = by_id.get(player_id)
+        if current is None:
+            by_id[player_id] = dict(entry)
+            continue
+        g1 = as_int(current.get("games")) or 0
+        g2 = as_int(entry.get("games")) or 0
+        games = g1 + g2
+        if "games" in current or "games" in entry:
+            current["games"] = games
+        if games and (current.get("average") is not None or entry.get("average") is not None):
+            current["average"] = round(
+                ((as_float(current.get("average")) or 0) * g1 + (as_float(entry.get("average")) or 0) * g2) / games,
+                2,
+            )
+        va, vb = current.get("value"), entry.get("value")
+        if isinstance(va, (int, float)) and isinstance(vb, (int, float)):
+            if current.get("average") is not None and abs(float(va) - float(current.get("average") or 0)) < 0.011:
+                current["value"] = current.get("average")
+            else:
+                current["value"] = (as_int(va) or 0) + (as_int(vb) or 0)
+        for list_key in ("teams", "leagues"):
+            if list_key not in current and list_key not in entry:
+                continue
+            items: list[str] = []
+            seen: set[str] = set()
+            for src in (current, entry):
+                raw = src.get(list_key) or []
+                if isinstance(raw, str):
+                    raw = [raw]
+                for item in raw:
+                    text = str(item).strip()
+                    if text and text not in seen:
+                        seen.add(text)
+                        items.append(text)
+            current[list_key] = items
+            current["value"] = len(items)
+        if entry.get("season") and not current.get("season"):
+            current["season"] = entry.get("season")
+        if entry.get("player_name") and not current.get("player_name"):
+            current["player_name"] = entry.get("player_name")
+    merged = list(by_id.values()) + leftover
+    merged.sort(
+        key=lambda row: (
+            -(as_float(row.get("value")) or 0),
+            -(as_int(row.get("games")) or 0),
+            as_str(row.get("player_name")) or "",
+        )
+    )
+    return merged[:_LEGEND_TOP_N]
+
+
 def _canonicalize_legends(con, legends: dict[str, Any]) -> None:
     for key in _empty_legends():
-        apply_canonical_player_names(con, legends.get(key) or [])
+        entries = legends.get(key) or []
+        fold_orphan_player_ids(con, entries)
+        legends[key] = _merge_legend_entries(entries)
+        apply_canonical_player_names(con, legends[key])
 
 
 def _str_list(value: Any) -> list[str]:

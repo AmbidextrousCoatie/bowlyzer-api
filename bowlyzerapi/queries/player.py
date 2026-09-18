@@ -27,8 +27,8 @@ from bowlyzerapi.engine import (
     try_cast,
 )
 from bowlyzerapi.queries.filters import is_bye, is_league_fact, is_player_game, resolve_club
-from bowlyzerapi.queries.identity import collapse_player_catalog, canonical_player_names
-from bowlyzerapi.queries.tournament import overall_standings
+from bowlyzerapi.queries.identity import collapse_player_catalog, canonical_player_names, identity_labels, fold_orphan_player_ids, apply_canonical_player_names
+from bowlyzerapi.queries.tournament import overall_standings_for
 from bowlyzerapi.queries.tournament_names import normalize_tournament_group_name
 from bowlyzerapi.queries.util import as_float, as_int, as_str
 from bowlyzerapi.warehouse import session
@@ -43,10 +43,31 @@ def _team_number(team: str | None) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def _who(table, player_id: str | None, player_name: str | None):
-    if player_id:
-        return table.player_id == player_id
-    return lower(trim(table.player_name)) == lower(trim(player_name or ""))
+def _who(table, player_id: str | None, player_name: str | None, labels: list[str] | None = None):
+    """Match EDV id, plus name-only historic rows. See docs/player-identity.md."""
+    pid = (player_id or "").strip() or None
+    names: list[str] = []
+    seen: set[str] = set()
+    for raw in (player_name, *(labels or [])):
+        text = (raw or "").strip()
+        key = text.casefold()
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        names.append(key)
+    empty_id = table.player_id.is_null() | (trim(table.player_id) == "")
+    name_pred = lower(trim(table.player_name)).in_(names) if names else None
+    if pid and name_pred is not None:
+        return (table.player_id == pid) | (empty_id & name_pred)
+    if pid:
+        return table.player_id == pid
+    if name_pred is not None:
+        return name_pred
+    return lower(trim(table.player_name)) == ""
+
+
+def _who_for(con, table, player_id: str | None, player_name: str | None):
+    return _who(table, player_id, player_name, identity_labels(con, player_id, player_name))
 
 
 def _resolve_player(con, ident: str) -> tuple[str | None, str | None]:
@@ -164,8 +185,8 @@ def player_seasons(*, ident: str | None = None, club: str | None = None) -> dict
         league = Query().from_(g).select(g.season).where(is_player_game(g), ~is_bye(g.player_name), g.season.is_not_null())
         tourney = Query().from_(t).select(t.season).where(~is_bye(t.player_name), t.season.is_not_null())
         if ident:
-            league = league.where(_who(g, player_id, player_name))
-            tourney = tourney.where(_who(t, player_id, player_name))
+            league = league.where(_who_for(con, g, player_id, player_name))
+            tourney = tourney.where(_who_for(con, t, player_id, player_name))
         if canonical:
             league = league.where(lower(trim(g.club)) == lower(trim(canonical)))
             tourney = tourney.where(lower(trim(t.club)) == lower(trim(canonical)))
@@ -226,8 +247,8 @@ def player_highest_games(
             .where(~is_bye(t.player_name), t.score.is_not_null())
         )
         if ident:
-            league_q = league_q.where(_who(g, player_id, player_name))
-            tourney_q = tourney_q.where(_who(t, player_id, player_name))
+            league_q = league_q.where(_who_for(con, g, player_id, player_name))
+            tourney_q = tourney_q.where(_who_for(con, t, player_id, player_name))
         if canonical:
             league_q = league_q.where(lower(trim(g.club)) == lower(trim(canonical)))
             tourney_q = tourney_q.where(lower(trim(t.club)) == lower(trim(canonical)))
@@ -293,8 +314,8 @@ def player_document(
         player_id, player_name = _resolve_player(con, ident)
         if not player_id and not player_name:
             return _empty_stats(ident)
-        who_g = _who(g, player_id, player_name)
-        who_t = _who(t, player_id, player_name)
+        who_g = _who_for(con, g, player_id, player_name)
+        who_t = _who_for(con, t, player_id, player_name)
         if canonical:
             who_g = who_g & (lower(trim(g.club)) == lower(trim(canonical)))
             who_t = who_t & (lower(trim(t.club)) == lower(trim(canonical)))
@@ -588,6 +609,19 @@ def player_aggregate(*, club: str | None = None, season: str | None = None, top_
         player_comp_t_rows = fetch_dicts(con, player_comp_t)
         period_rows = fetch_dicts(con, periods_q)
         period_t_rows = fetch_dicts(con, periods_t)
+        fold_orphan_player_ids(con, player_season_rows)
+        fold_orphan_player_ids(con, player_comp_rows)
+        fold_orphan_player_ids(con, player_comp_t_rows)
+        fold_orphan_player_ids(con, period_rows)
+        fold_orphan_player_ids(con, period_t_rows)
+        apply_canonical_player_names(con, player_season_rows)
+        apply_canonical_player_names(con, player_comp_rows)
+        apply_canonical_player_names(con, player_comp_t_rows)
+        apply_canonical_player_names(con, period_rows)
+        apply_canonical_player_names(con, period_t_rows)
+        player_season_rows = _coalesce_count_rows(player_season_rows, ("player_id", "player_name", "season"))
+        player_comp_rows = _coalesce_count_rows(player_comp_rows, ("player_id", "season", "event", "club", "team"))
+        player_comp_t_rows = _coalesce_count_rows(player_comp_t_rows, ("player_id", "season", "event", "club"))
         season_catalog = player_seasons(club=canonical)["seasons"]
 
     season_totals = _merge_season_totals(league_season_rows, tourney_season_rows)
@@ -848,6 +882,29 @@ def _season_total_row(row: dict[str, Any], *, vs_last: float | None = None) -> d
     }
 
 
+def _coalesce_count_rows(rows: list[dict[str, Any]], keys: tuple[str, ...]) -> list[dict[str, Any]]:
+    by_key: dict[tuple, dict[str, Any]] = {}
+    for row in rows:
+        key = tuple(as_str(row.get(field)) or "" for field in keys)
+        current = by_key.get(key)
+        if current is None:
+            by_key[key] = dict(row)
+            continue
+        g1 = as_int(current.get("games")) or 0
+        g2 = as_int(row.get("games")) or 0
+        games = g1 + g2
+        pins = (as_float(current.get("pins")) or 0) + (as_float(row.get("pins")) or 0)
+        current["games"] = games
+        current["pins"] = pins
+        if games:
+            current["average"] = round(pins / games, 2)
+        if as_str(row.get("player_id")) and not as_str(current.get("player_id")):
+            current["player_id"] = row.get("player_id")
+        if as_str(row.get("player_name")) and not as_str(current.get("player_name")):
+            current["player_name"] = row.get("player_name")
+    return list(by_key.values())
+
+
 def _merge_player_season_totals(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     by_key: dict[tuple[str, str], dict[str, Any]] = {}
     for row in rows:
@@ -1039,6 +1096,12 @@ def _player_event_ranks(con, player_id: str | None, player_name: str | None) -> 
     pk_g = coalesce(nullif(trim(g.player_id), ""), g.player_name)
     pk_t = coalesce(nullif(trim(t.player_id), ""), t.player_name)
     player_key = player_id or player_name or ""
+    identity_keys = [key for key in identity_labels(con, player_id, player_name) if key]
+    if player_id:
+        identity_keys.append(player_id)
+    if player_name:
+        identity_keys.append(player_name)
+    rank_keys = list(dict.fromkeys(identity_keys)) or [player_key]
     league_played = (
         Query()
         .from_(g)
@@ -1089,14 +1152,14 @@ def _player_event_ranks(con, player_id: str | None, player_name: str | None) -> 
         Query.with_ctes(played=league_played, ranked=league_ranked)
         .from_(lr)
         .select(lr.season, lr.event, lr.rk, lr.competitors)
-        .where(lr.pk == player_key),
+        .where(lr.pk.in_(rank_keys)),
     )
     tourney_rows = fetch_dicts(
         con,
         Query.with_ctes(tplayed=tourney_played, tranked=tourney_ranked)
         .from_(tr)
         .select(tr.season, tr.event, tr.rk, tr.competitors)
-        .where(tr.pk == player_key),
+        .where(tr.pk.in_(rank_keys)),
     )
     out: dict[tuple[str, str], tuple[int | None, int | None]] = {}
     for row in league_rows + tourney_rows:
@@ -1119,7 +1182,7 @@ def player_tournaments(
         player_id, player_name = _resolve_player(con, ident)
         if not player_name and not player_id:
             return {"player_id": None, "player_name": ident, "results": []}
-        who = _who(t, player_id, player_name)
+        who = _who_for(con, t, player_id, player_name)
         q = (
             Query()
             .from_(t)
@@ -1131,14 +1194,22 @@ def player_tournaments(
         if season:
             q = q.where(t.season == season)
         pairs = fetch_dicts(con, q)
-    results = []
+    wanted: list[dict[str, Any]] = []
+    keys: list[tuple[str, str]] = []
     for row in pairs:
         event_name = as_str(row["event"]) or ""
         group = normalize_tournament_group_name(event_name) or event_name
         if group_filter and group != group_filter and event_name != event:
             continue
-        standings = overall_standings(str(row["season"]), event_name)
-        folded = (player_name or "").casefold()
+        wanted.append({**row, "event_name": event_name, "group": group})
+        keys.append((str(row["season"]), event_name))
+    standings_map = overall_standings_for(keys)
+    results = []
+    folded = (player_name or "").casefold()
+    for row in wanted:
+        event_name = row["event_name"]
+        group = row["group"]
+        standings = standings_map.get((str(row["season"]), event_name)) or []
         lb = next(
             (
                 r
