@@ -16,6 +16,7 @@ from bowlyzerapi.engine import (
     game_line,
     max_,
     min_,
+    or_,
     round_,
     sum_,
 )
@@ -137,6 +138,110 @@ def _standings_from_weeks(weekly: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "average": round(row["pins"] / games, 2) if games else None,
                 "weeks": dict(sorted(history[row["team"]].items())),
             }
+        )
+    return out
+
+
+def _pair_scope(g, pairs: list[tuple[str, str]]):
+    return or_(*[event_scope(g, season, event) for season, event in pairs])
+
+
+def league_table_snapshots(
+    con,
+    pairs: list[tuple[str, str]],
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """Final table per (season, event), same ranking as `league_standings` through latest week.
+
+    Season-level totals match summing weekly rows. Honor / series / players are omitted.
+    """
+    unique: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for season, event in pairs:
+        key = (as_str(season) or "", as_str(event) or "")
+        if not key[0] or not key[1] or key in seen:
+            continue
+        seen.add(key)
+        unique.append(key)
+    if not unique:
+        return {}
+
+    g = game_line
+    scope = _pair_scope(g, unique) & g.week.is_not_null()
+    players = fetch_dicts(
+        con,
+        Query()
+        .from_(g)
+        .select(
+            g.season,
+            g.event,
+            g.team,
+            sum_(abs_(g.score)).as_("pins"),
+            sum_(g.points).as_("player_pts"),
+            count_star().as_("games"),
+        )
+        .where(scope, is_player_game(g), ~is_bye(g.player_name), g.team.is_not_null())
+        .group_by(g.season, g.event, g.team),
+    )
+    teams = fetch_dicts(
+        con,
+        Query()
+        .from_(g)
+        .select(
+            g.season,
+            g.event,
+            g.team,
+            (sum_(g.points) + coalesce(sum_(g.bonus_points), 0)).as_("match_pts"),
+        )
+        .where(scope, is_team_total(g), g.team.is_not_null())
+        .group_by(g.season, g.event, g.team),
+    )
+
+    totals: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for row in players:
+        key = (str(row["season"]), str(row["event"]), str(row["team"]))
+        totals[key] = {
+            "team": key[2],
+            "points": as_float(row["player_pts"]) or 0.0,
+            "pins": as_float(row["pins"]) or 0.0,
+            "games": as_int(row["games"]) or 0,
+        }
+    for row in teams:
+        key = (str(row["season"]), str(row["event"]), str(row["team"]))
+        slot = totals.setdefault(key, {"team": key[2], "points": 0.0, "pins": 0.0, "games": 0})
+        slot["points"] += as_float(row["match_pts"]) or 0.0
+
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for season, event, _team in totals:
+        grouped[(season, event)].append(totals[(season, event, _team)])
+
+    out: dict[tuple[str, str], dict[str, Any]] = {}
+    for pair in unique:
+        ranked = sorted(grouped.get(pair, []), key=lambda r: (-r["points"], -r["pins"], r["team"]))
+        standings = []
+        for i, row in enumerate(ranked, start=1):
+            games = row["games"] or 0
+            standings.append(
+                {
+                    "rank": i,
+                    "team": row["team"],
+                    "points": round(row["points"], 2),
+                    "pins": round(row["pins"], 1),
+                    "games": games,
+                    "average": round(row["pins"] / games, 2) if games else None,
+                }
+            )
+        avgs = [r["average"] for r in standings if r["average"] is not None]
+        field_avg = round(sum(avgs) / len(avgs), 2) if avgs else None
+        out[pair] = {
+            "standings": standings,
+            "num_teams": len(standings),
+            "league_average": field_avg,
+            "by_team": {r["team"]: r for r in standings},
+        }
+    for pair in unique:
+        out.setdefault(
+            pair,
+            {"standings": [], "num_teams": 0, "league_average": None, "by_team": {}},
         )
     return out
 

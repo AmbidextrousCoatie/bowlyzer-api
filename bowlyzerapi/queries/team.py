@@ -20,7 +20,7 @@ from bowlyzerapi.engine import (
     sum_,
 )
 from bowlyzerapi.queries.filters import is_bye, is_player_game, is_team_total
-from bowlyzerapi.queries.league import league_standings
+from bowlyzerapi.queries.league import league_table_snapshots
 from bowlyzerapi.queries.util import as_float, as_int, as_str
 from bowlyzerapi.warehouse import session
 
@@ -115,46 +115,48 @@ def team_document(
         )
         matches = _matches(con, team, season)
 
-    history: dict[str, Any] = {}
-    for row in history_rows:
-        s = as_str(row["season"]) or ""
-        league = as_str(row["event"]) or ""
-        standings = league_standings(s, league)
-        pos = next((r["rank"] for r in standings["standings"] if r["team"] == team), None)
-        history[s] = {
-            "league_name": league,
-            "final_position": pos,
-            "statistics": {
-                "total_score": as_float(row["total_score"]),
-                "total_points": as_float(row["total_points"]),
-                "average_score": as_float(row["average_score"]),
-                "games_played": as_int(row["games"]),
-                "best_score": as_int(row["best_score"]),
-                "worst_score": as_int(row["worst_score"]),
-            },
-        }
+        history: dict[str, Any] = {}
+        for row in history_rows:
+            s = as_str(row["season"]) or ""
+            league = as_str(row["event"]) or ""
+            history[s] = {
+                "league_name": league,
+                "final_position": None,
+                "statistics": {
+                    "total_score": as_float(row["total_score"]),
+                    "total_points": as_float(row["total_points"]),
+                    "average_score": as_float(row["average_score"]),
+                    "games_played": as_int(row["games"]),
+                    "best_score": as_int(row["best_score"]),
+                    "worst_score": as_int(row["worst_score"]),
+                },
+            }
 
-    leagues: dict[str, Any] = {}
-    for s, block in history.items():
-        league = block["league_name"]
-        standings = league_standings(s, league)
-        team_row = next((r for r in standings["standings"] if r["team"] == team), None)
-        field_avg = None
-        if standings["standings"]:
-            avgs = [r["average"] for r in standings["standings"] if r["average"] is not None]
-            field_avg = round(sum(avgs) / len(avgs), 2) if avgs else None
-        leagues[s] = {
-            "league_name": league,
-            "num_teams": len(standings["standings"]),
-            "team_average": team_row["average"] if team_row else None,
-            "league_average": field_avg,
-            "vs_league_average": (
-                round(team_row["average"] - field_avg, 2)
-                if team_row and team_row["average"] is not None and field_avg is not None
-                else None
-            ),
-            "final_position": block["final_position"],
-        }
+        snaps = league_table_snapshots(
+            con,
+            [(s, block["league_name"]) for s, block in history.items()],
+        )
+
+        leagues: dict[str, Any] = {}
+        for s, block in history.items():
+            league = block["league_name"]
+            snap = snaps.get((s, league), {})
+            team_row = (snap.get("by_team") or {}).get(team)
+            pos = team_row["rank"] if team_row else None
+            block["final_position"] = pos
+            field_avg = snap.get("league_average")
+            leagues[s] = {
+                "league_name": league,
+                "num_teams": snap.get("num_teams") or 0,
+                "team_average": team_row["average"] if team_row else None,
+                "league_average": field_avg,
+                "vs_league_average": (
+                    round(team_row["average"] - field_avg, 2)
+                    if team_row and team_row["average"] is not None and field_avg is not None
+                    else None
+                ),
+                "final_position": pos,
+            }
 
     clutch_threshold = max(1, min(int(threshold), 100))
     clutch = _clutch(matches, threshold=clutch_threshold)

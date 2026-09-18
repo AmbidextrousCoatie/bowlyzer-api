@@ -12,7 +12,8 @@ Chart series configs and table **column logic** stay as today; v1 does not
 redesign palettes or Tabulator fields.
 
 Contract: [`openapi/openapi.yaml`](../openapi/openapi.yaml). Spike results:
-[`bench-get-section.md`](bench-get-section.md).
+[`bench-get-section.md`](bench-get-section.md). Slow kernels and live-publish
+notes: [`perf.md`](perf.md).
 
 ## Status
 

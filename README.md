@@ -89,6 +89,6 @@ at any published Parquet directory. After a weekend league drop, re-run
 
 ## Next
 
-1. More `/api/v1` resources from `docs/resources.md` (meta, matchday, player) as hooks migrate
-2. KO bracket still in-process / Flask until ported onto the tournament document
-3. Stack lock-in (Go + DuckDB default) once the contract has a few more resources
+1. Query performance — N+1 standings / podiums / player-tournament places; see [`docs/perf.md`](docs/perf.md)
+2. Staging → publish for live league days (verified results only)
+3. Remaining Flask: i18n, session/Datenquelle, diagnosis / pipeline
