@@ -634,6 +634,54 @@ def tournament_player_section(season: str, event: str, player: str) -> dict[str,
     }
 
 
+def _load_event_games(season: str, event: str) -> list[dict[str, Any]]:
+    t = tournament_line
+    with session() as con:
+        events = _resolve_events(con, season, event)
+        if not events:
+            return []
+        games = fetch_dicts(
+            con,
+            Query()
+            .from_(t)
+            .select(
+                trim(t.player_name).as_("player_name"),
+                t.player_id,
+                t.club,
+                t.round_number,
+                t.round_name,
+                t.game_number,
+                t.score,
+                t.handicap,
+                t.apriori_average,
+                t.handicap_reference,
+                t.stage_rank,
+            )
+            .where(_event_filter(t, season, events), ~is_bye(t.player_name))
+            .order_by(t.round_number, t.game_number, t.player_name),
+        )
+        apply_canonical_player_names(con, games)
+    return games
+
+
+def overall_standings(season: str, event: str) -> list[dict[str, Any]]:
+    """Gesamt leaderboard with KO / stepladder places when the event has a bracket."""
+    games = _load_event_games(season, event)
+    if not games:
+        return []
+    use_net = any(
+        (as_int(row.get("handicap")) or 0) != 0 or row.get("apriori_average") is not None
+        for row in games
+    )
+    ko_bracket = build_ko_bracket(season, event, games)
+    scored = [row for row in games if not _is_walkover(row)]
+    leaderboard = _leaderboard_from_games(scored, use_net=use_net, through_round=None)
+    if ko_bracket.get("matches"):
+        leaderboard = apply_ko_ranks(leaderboard, ko_bracket)
+        leaderboard.sort(key=lambda row: (int(row.get("rank") or 10**9), str(row.get("player") or "")))
+    return leaderboard
+
+
 def tournament_podiums(
     *,
     season: str | None = None,
@@ -654,9 +702,8 @@ def tournament_podiums(
         if key in seen_groups:
             continue
         seen_groups.add(key)
-        section = tournament_section(item["season"], group)
         finishers = []
-        for row in section["leaderboard"][:n]:
+        for row in overall_standings(item["season"], group)[:n]:
             if club and str(row.get("club") or "").casefold() != club.casefold():
                 continue
             finishers.append(

@@ -40,9 +40,9 @@ Contract: [`openapi/openapi.yaml`](../openapi/openapi.yaml). Spike results:
 | `GET /api/v1/teams/{team}` | yes | SPA `/club` on v1 (`?season=` `?threshold=`; query alias `/teams/document`) |
 | `GET /api/v1/players` | yes | `?q=&club=` |
 | `GET /api/v1/players/{id}` | yes | Lifetime + competitions + highlights |
-| `GET /api/v1/players/{id}/tournaments` | yes | Positions from kernel leaderboard (no KO); `?season=&event=` |
+| `GET /api/v1/players/{id}/tournaments` | yes | Positions use KO / stepladder places when the event has a bracket |
 | `GET /api/v1/tournaments` | yes | Catalog; `?season=&club=&event=` returns `seasons` / `events` (group names) |
-| `GET /api/v1/tournaments/podiums` | yes | Top-N from kernel ranks (no KO); `?event=` is group name |
+| `GET /api/v1/tournaments/podiums` | yes | Top-N from overall standings (KO places when the event has a bracket) |
 | `GET /api/v1/tournaments/{season}/{event}` | yes | Leaderboard, field-progress, rounds, cards, round_results, best_efforts, format, players, **KO bracket**. `?round=&n=` |
 | `GET /api/v1/tournaments/{season}/{event}/players/{player}` | yes | Player section from kernel + KO path / highlights |
 | `GET /api/v1/tournaments/players` | yes | Player catalog; `?season=&event=&round=` |

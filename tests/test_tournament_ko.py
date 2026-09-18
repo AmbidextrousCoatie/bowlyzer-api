@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from bowlyzerapi.queries.tournament_ko import (
     apply_ko_ranks,
     build_ko_bracket,
@@ -197,3 +199,28 @@ def test_tree_bo3_and_group_name_config() -> None:
     places = {p["place"]: p["player"] for p in bracket["placements"]}
     assert places[1] == "A"
     assert places[2] == "E"
+
+
+def test_live_standings_use_ko_places() -> None:
+    from bowlyzerapi.queries.player import player_tournaments
+    from bowlyzerapi.queries.tournament import overall_standings, tournament_podiums
+    from bowlyzerapi.warehouse import warehouse_path
+
+    if not warehouse_path().is_file():
+        pytest.skip("no warehouse")
+
+    bm = overall_standings(SEASON, "Bayerische Meisterschaft Einzel")
+    assert bm[0]["rank"] == 1
+    assert bm[0]["player"] == "Konieczny, Bodo"
+    assert bm[1]["player"] == "Wiemken, Moritz"
+
+    podium = tournament_podiums(season=SEASON, event="Bayerische Meisterschaft Einzel", n=3)
+    names = [row["player"] for row in podium["podiums"][0]["finishers"]]
+    assert names[:2] == ["Konieczny, Bodo", "Wiemken, Moritz"]
+
+    club = tournament_podiums(season=SEASON, event=CLUB, n=3)
+    club_names = [row["player"] for row in club["podiums"][0]["finishers"]]
+    assert club_names == ["Feller, Christian", "Schneider, Tobias", "Hartfeil, Volkmar"]
+
+    history = player_tournaments("Feller, Christian", season=SEASON, event=CLUB)
+    assert history["results"][0]["position"] == 1

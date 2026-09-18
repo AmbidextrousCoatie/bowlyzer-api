@@ -28,7 +28,7 @@ from bowlyzerapi.engine import (
 )
 from bowlyzerapi.queries.filters import is_bye, is_league_fact, is_player_game, resolve_club
 from bowlyzerapi.queries.identity import collapse_player_catalog, canonical_player_names
-from bowlyzerapi.queries.tournament import tournament_section
+from bowlyzerapi.queries.tournament import overall_standings
 from bowlyzerapi.queries.tournament_names import normalize_tournament_group_name
 from bowlyzerapi.queries.util import as_float, as_int, as_str
 from bowlyzerapi.warehouse import session
@@ -1137,13 +1137,14 @@ def player_tournaments(
         group = normalize_tournament_group_name(event_name) or event_name
         if group_filter and group != group_filter and event_name != event:
             continue
-        section = tournament_section(str(row["season"]), event_name)
+        standings = overall_standings(str(row["season"]), event_name)
+        folded = (player_name or "").casefold()
         lb = next(
             (
                 r
-                for r in section["leaderboard"]
+                for r in standings
                 if (player_id and r.get("player_id") == player_id)
-                or (player_name and str(r.get("player_name") or r.get("player") or "") == player_name)
+                or str(r.get("player_name") or r.get("player") or "").casefold() == folded
             ),
             None,
         )
